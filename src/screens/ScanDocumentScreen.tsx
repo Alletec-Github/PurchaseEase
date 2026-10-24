@@ -1,3 +1,8 @@
+import { vendors, items, localDate } from '../services/mockData';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import type { OrderFlowParamList } from '../types/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -5,11 +10,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Animated,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { theme } from '../config/theme';
 
@@ -19,7 +23,7 @@ const formatCurrency = (amount: number) =>
 const MOCK_RESULT = {
   vendorName: 'Contoso Electronics Ltd.',
   invoiceNumber: 'INV-2026-00847',
-  invoiceDate: '2026-04-25',
+  invoiceDate: localDate(),
   lineItems: [
     { description: 'Wireless Keyboard Pro', quantity: 10, unitCost: 45.99, amount: 459.90 },
     { description: 'USB-C Docking Station', quantity: 5, unitCost: 129.99, amount: 649.95 },
@@ -32,7 +36,7 @@ const MOCK_RESULT = {
 };
 
 export default function ScanDocumentScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<OrderFlowParamList>>();
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [pulseAnim] = useState(new Animated.Value(1));
@@ -62,34 +66,26 @@ export default function ScanDocumentScreen() {
 
   const handleCreateFromScan = () => {
     navigation.navigate('CreateOrder', {
+      prefillKey: String(Date.now()),
       prefillData: {
+        vendor: vendors[0],
+        notes: `Demo scan: ${MOCK_RESULT.invoiceNumber}`,
         lines: MOCK_RESULT.lineItems.map((item, i) => ({
           tempId: `scan-${i}`,
-          item: {
-            id: `mock-${i}`,
-            number: `SCAN-${i + 1}`,
-            displayName: item.description,
-            type: 'Inventory' as const,
-            unitPrice: item.unitCost,
-            unitCost: item.unitCost,
-            inventory: 0,
-            baseUnitOfMeasureCode: 'PCS',
-            blocked: false,
-            itemCategoryCode: '',
-          },
+          item: items[i],
           quantity: item.quantity,
           directUnitCost: item.unitCost,
           discountPercent: 0,
           lineType: 'Item' as const,
           description: item.description,
-          unitOfMeasureCode: 'PCS',
+          unitOfMeasureCode: items[i].baseUnitOfMeasureCode,
         })),
       },
     });
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Banner */}
         <View style={styles.banner}>
@@ -113,7 +109,7 @@ export default function ScanDocumentScreen() {
                   <Icon name="file-search" size={48} color={theme.colors.primary} />
                 </Animated.View>
                 <ActivityIndicator style={{ marginTop: 16 }} color={theme.colors.primary} />
-                <Text style={styles.scanningText}>Analyzing document...</Text>
+                <Text style={styles.scanningText}>Simulating extraction...</Text>
                 <Text style={styles.scanningSubtext}>Extracting vendor, items, and amounts</Text>
               </View>
             ) : (
@@ -121,16 +117,16 @@ export default function ScanDocumentScreen() {
                 <View style={styles.uploadArea}>
                   <Icon name="camera-document" size={64} color={theme.colors.textLight} />
                   <Text style={styles.uploadTitle}>Scan or Upload Document</Text>
-                  <Text style={styles.uploadSubtitle}>Take a photo or select a file</Text>
+                  <Text style={styles.uploadSubtitle}>Preview a simulated document extraction</Text>
                 </View>
                 <View style={styles.buttonRow}>
                   <TouchableOpacity style={styles.scanButton} onPress={handleScan} activeOpacity={0.7}>
                     <Icon name="camera" size={22} color={theme.colors.white} />
-                    <Text style={styles.scanButtonText}>Take Photo</Text>
+                    <Text style={styles.scanButtonText}>Demo Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.fileButton} onPress={handleScan} activeOpacity={0.7}>
                     <Icon name="file-upload" size={22} color={theme.colors.primary} />
-                    <Text style={styles.fileButtonText}>Upload File</Text>
+                    <Text style={styles.fileButtonText}>Demo File</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -143,7 +139,7 @@ export default function ScanDocumentScreen() {
           <>
             <View style={styles.resultHeader}>
               <Icon name="check-circle" size={24} color={theme.colors.success} />
-              <Text style={styles.resultTitle}>Document Analyzed</Text>
+              <Text style={styles.resultTitle}>Demo Document Analyzed</Text>
               <Text style={styles.confidenceText}>{Math.round(MOCK_RESULT.confidence * 100)}% confidence</Text>
             </View>
 
