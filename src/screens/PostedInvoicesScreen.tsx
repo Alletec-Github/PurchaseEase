@@ -1,3 +1,8 @@
+import ErrorState from '../components/ErrorState';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import type { InvoicesStackParamList } from '../types/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -8,9 +13,8 @@ import {
   TextInput,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
@@ -20,19 +24,23 @@ const formatCurrency = (amount: number) =>
   '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 export default function PostedInvoicesScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<InvoicesStackParamList>>();
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [error,setError]=useState<string|null>(null);
+  const [dateFrom,setDateFrom]=useState('');
+  const [dateTo,setDateTo]=useState('');
 
   const fetchInvoices = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) setLoading(true);
-      const data = await bcApi.getPurchaseInvoices({ $orderby: 'invoiceDate desc', $top: '100' });
+      setError(null);
+      const data = await bcApi.getPurchaseInvoices({ $orderby: 'postingDate desc' });
       setInvoices(data);
-    } catch {
-      // silent
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to load invoices');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -41,9 +49,11 @@ export default function PostedInvoicesScreen() {
 
   useFocusEffect(useCallback(() => { fetchInvoices(); }, [fetchInvoices]));
 
+  const validDate=(value:string)=>!value||(/^\d{4}-\d{2}-\d{2}$/.test(value)&&!Number.isNaN(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value);
+  const invalidRange=!validDate(dateFrom)||!validDate(dateTo)||!!(dateFrom&&dateTo&&dateFrom>dateTo);
   const filtered = invoices.filter(inv =>
-    inv.number.toLowerCase().includes(search.toLowerCase()) ||
-    inv.vendorName.toLowerCase().includes(search.toLowerCase()),
+    !invalidRange && (!dateFrom||inv.postingDate>=dateFrom)&&(!dateTo||inv.postingDate<=dateTo)&&
+    (inv.number.toLowerCase().includes(search.toLowerCase()) || inv.vendorName.toLowerCase().includes(search.toLowerCase())),
   );
 
   const renderItem = ({ item }: { item: PurchaseInvoice }) => (
@@ -58,7 +68,7 @@ export default function PostedInvoicesScreen() {
       <View style={styles.cardBottom}>
         <View style={styles.dateRow}>
           <Icon name="calendar" size={14} color={theme.colors.textLight} />
-          <Text style={styles.dateText}>{item.invoiceDate}</Text>
+          <Text style={styles.dateText}>{item.postingDate}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: theme.colors.statusReceivedBg }]}>
           <Text style={[styles.statusText, { color: theme.colors.statusReceived }]}>Posted</Text>
@@ -68,7 +78,7 @@ export default function PostedInvoicesScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right']} style={styles.container}>
       <View style={styles.searchContainer}>
         <Icon name="magnify" size={20} color={theme.colors.textSecondary} />
         <TextInput
@@ -85,7 +95,12 @@ export default function PostedInvoicesScreen() {
         )}
       </View>
 
-      {loading ? (
+      <View style={{flexDirection:'row',gap:12,paddingHorizontal:16,paddingTop:12}}>
+        <View style={{flex:1}}><Text>Posted from</Text><TextInput accessibilityLabel="Posted from date" value={dateFrom} onChangeText={setDateFrom} placeholder="YYYY-MM-DD" autoCorrect={false} style={styles.searchInput}/></View>
+        <View style={{flex:1}}><Text>Posted to</Text><TextInput accessibilityLabel="Posted to date" value={dateTo} onChangeText={setDateTo} placeholder="YYYY-MM-DD" autoCorrect={false} style={styles.searchInput}/></View>
+      </View>
+      {invalidRange&&<Text style={{color:theme.colors.error,padding:16}}>Use valid YYYY-MM-DD dates, with the end on or after the start.</Text>}
+      {error ? <ErrorState message={error} onRetry={()=>fetchInvoices()}/> : loading ? (
         <View style={styles.centered}><ActivityIndicator size="large" color={theme.colors.primary} /></View>
       ) : (
         <FlatList
