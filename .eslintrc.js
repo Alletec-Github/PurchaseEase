@@ -1,4 +1,1 @@
-module.exports = {
-  root: true,
-  extends: '@react-native',
-};
+module.exports = { extends: ['expo'], ignorePatterns: ['dist/*', 'coverage/*', 'ios/*', 'android/*'] };

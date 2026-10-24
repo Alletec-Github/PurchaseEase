@@ -1,280 +1,80 @@
-<p align="center">
-  <img src="https://alletec.com/wp-content/uploads/2023/03/alletec-logo.png" alt="Alletec Logo" width="200" />
-</p>
+<p align="center"><img src="docs/community-logo.svg" width="96" alt="PurchaseEase community logo" /></p>
 
-<h1 align="center">PurchaseEase</h1>
+# PurchaseEase
 
-<p align="center">
-  <strong>Mobile purchase order management app integrated with Business Central</strong>
-</p>
+Mobile purchase order management app with demo data mode.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/React%20Native-0.80+-61DAFB?logo=react" />
-  <img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?logo=typescript" />
-  <img src="https://img.shields.io/badge/Business%20Central-v2.0%20API-0078D4" />
-  <img src="https://img.shields.io/badge/Platform-iOS%20%7C%20Android-green" />
-</p>
-
----
-
-## Overview
-
-PurchaseEase is a React Native mobile application used by purchase departments to create, manage, and track purchase orders in **Microsoft Dynamics 365 Business Central**. Users can create purchase orders manually by selecting vendors and items, or from a scanned document (future Azure Document Intelligence integration).
-
-The app uses **BC standard v2.0 APIs** — no custom APIs are required.
-
----
+PurchaseEase helps purchasing teams create, manage and track orders. It runs in Expo Go SDK 54 with local sample data; there is no Business Central or Azure connection.
 
 ## Features
 
-- **Dashboard** — Overview of open orders, monthly totals, pending receipts, and quick actions
-- **Create Purchase Orders** — Step-by-step wizard: select vendor → add line items → set dates → review & submit
-- **Order Management** — List, filter, search, edit, and delete purchase orders with real-time BC sync
-- **Receive & Invoice** — One-tap receive and invoice posted purchase orders
-- **Document Scanning** *(Coming Soon)* — AI-powered document extraction via Azure Document Intelligence
-- **Posted Invoices** — View and search posted/invoiced purchase documents
-- **Vendor & Item Lookup** — Searchable vendor and item catalogs from BC master data
-- **Offline-ready Auth** — Demo login with AsyncStorage persistence
-- **Professional UI** — Corporate blue design with status badges, card layouts, and pull-to-refresh
+- Persistent demo sign-in and profile, five-tab navigation
+- Dashboard metrics, recent orders, pull-to-refresh and quick actions
+- Vendor and item search, four-step order creation with dates, quantities, discounts and notes
+- Draft submission, order and line editing, deletion, receive and invoice
+- Posted invoices with search, date filters and read-only details
+- Simulated document extraction with a prefilled order; no camera access or document upload
+- Resettable in-memory demo data and reusable accessible card components
 
----
+## Stack and architecture
 
-## Screenshots
+Expo SDK 54 / React Native 0.81 / React 19.1, TypeScript, React Navigation 7 native stacks and bottom tabs, Expo MaterialCommunityIcons, AsyncStorage, native date picker, Gesture Handler and Reanimated. Axios is available for a future API adapter but demo services make no HTTP requests.
 
-> Screenshots will be added after the initial build is complete.
+`src/screens` contains screens, `src/navigation` owns routes, `src/components` holds shared UI, `src/types` defines BC-shaped entities and app types, `src/config` stores theme and local configuration. Screens depend on the `bcApi` service interface; `src/services/mockData.ts` owns seeds and `bcApi.ts` implements session mutations with 300–600ms latency.
 
-| Login | Dashboard | Create Order | Order Detail |
-|-------|-----------|-------------|---------------|
-| *Coming Soon* | *Coming Soon* | *Coming Soon* | *Coming Soon* |
+## Local development
 
-| Orders List | Invoices | Document Scan | Settings |
-|-------------|----------|---------------|----------|
-| *Coming Soon* | *Coming Soon* | *Coming Soon* | *Coming Soon* |
+Use Node.js 20.19.4+ and npm. An Expo Go build compatible with SDK 54 is required. A global React Native CLI is unnecessary for Expo Go.
 
----
-
-## Tech Stack & Architecture
-
-| Layer | Technology |
-|-------|------------|
-| **Framework** | React Native 0.80+ with TypeScript |
-| **Navigation** | React Navigation 7 (Bottom Tabs + Native Stack) |
-| **HTTP Client** | Axios |
-| **Storage** | @react-native-async-storage/async-storage |
-| **Date Picker** | @react-native-community/datetimepicker |
-| **Icons** | react-native-vector-icons (MaterialCommunityIcons) |
-| **Animations** | react-native-gesture-handler + react-native-reanimated |
-| **Backend** | Microsoft Dynamics 365 Business Central v2.0 API |
-| **Auth** | OAuth2 Client Credentials (Entra ID / Azure AD) |
-
-### Architecture
-
-```
-src/
-├── components/          # Reusable UI components
-│   ├── VendorCard.tsx
-│   ├── ItemCard.tsx
-│   ├── OrderCard.tsx
-│   ├── InvoiceCard.tsx
-│   ├── StatusBadge.tsx
-│   ├── FormInput.tsx
-│   ├── SearchableList.tsx
-│   ├── QuantityInput.tsx
-│   ├── CurrencyDisplay.tsx
-│   ├── EmptyState.tsx
-│   ├── LoadingOverlay.tsx
-│   ├── SectionHeader.tsx
-│   └── ActionButton.tsx
-├── config/
-│   ├── appConfig.ts       # Real config (gitignored)
-│   ├── appConfig.example.ts # Placeholder config
-│   └── theme.ts           # Theme constants
-├── navigation/
-│   └── AppNavigator.tsx   # Tab + Stack navigators
-├── screens/
-│   ├── LoginScreen.tsx
-│   ├── DashboardScreen.tsx
-│   ├── CreateOrderScreen.tsx
-│   ├── OrderListScreen.tsx
-│   ├── OrderDetailScreen.tsx
-│   ├── EditOrderScreen.tsx
-│   ├── ScanDocumentScreen.tsx
-│   ├── PostedInvoicesScreen.tsx
-│   └── SettingsScreen.tsx
-├── services/
-│   └── bcApi.ts           # Centralized BC API service
-└── types/
-    ├── api.ts             # BC API response types
-    ├── navigation.ts      # Route param types
-    └── app.ts             # App-specific types
+```sh
+git clone https://github.com/Alletec-Github/PurchaseEase.git
+cd PurchaseEase
+npm install
+cp src/config/appConfig.example.ts src/config/appConfig.ts
+# Set demoUsername, demoPassword and environment in the copied file.
+npm start
 ```
 
----
+Scan Metro's QR code in compatible Expo Go on a phone on the same network. Use `npx expo start --tunnel` if LAN discovery is unavailable. The local config is gitignored; never commit credentials. Demo credentials provide a local UI gate, not production authentication.
 
-## Business Central Setup Guide
-
-### 1. Register an Entra ID (Azure AD) Application
-
-1. Go to [Azure Portal](https://portal.azure.com) → **Azure Active Directory** → **App registrations** → **New registration**
-2. Name: `PurchaseEase Mobile App`
-3. Supported account types: **Single tenant**
-4. Click **Register**
-5. Note the **Application (client) ID** and **Directory (tenant) ID**
-6. Go to **Certificates & secrets** → **New client secret** → Copy the secret value
-
-### 2. Configure API Permissions
-
-1. In your app registration, go to **API permissions** → **Add a permission**
-2. Select **Dynamics 365 Business Central**
-3. Choose **Application permissions**
-4. Add: **API.ReadWrite.All**
-5. Click **Grant admin consent** for your organization
-
-### 3. Enable Standard BC APIs (v2.0)
-
-Business Central standard v2.0 APIs should be enabled by default. Confirm these entities have API pages enabled:
-
-| Entity | API Endpoint | Purpose |
-|--------|-------------|----------|
-| **Purchase Orders** | `/purchaseOrders` | Create, read, update, delete purchase orders |
-| **Purchase Order Lines** | `/purchaseOrders({id})/purchaseOrderLines` | Manage order line items |
-| **Vendors** | `/vendors` | Vendor master data lookup |
-| **Items** | `/items` | Item master data lookup |
-| **Purchase Invoices** | `/purchaseInvoices` | Posted/invoiced purchase documents |
-| **Units of Measure** | `/unitsOfMeasure` | UoM reference data |
-| **Locations** | `/locations` | Warehouse locations |
-
-### 4. API Base URL Format
-
-```
-https://api.businesscentral.dynamics.com/v2.0/{tenantId}/{environment}/api/v2.0/companies({companyId})
+```sh
+npm run ios       # Expo Go in an installed iOS Simulator
+npm run android   # Expo Go in a running Android emulator
+npm run web       # Browser preview
+npm run typecheck
+npm test
+npx expo-doctor
+npx expo export --platform ios --platform android
 ```
 
-### 5. OAuth2 Token Endpoint
+For iOS Simulator install full Xcode, its iOS runtime and select Xcode as the active developer directory. Command Line Tools alone cannot launch simulators. Android needs Android Studio, SDK and an emulator or a USB-debugging device.
 
-```
-https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
-```
+This is an Expo managed project. Pods are unnecessary for Expo Go. For native builds, install Xcode and CocoaPods (iOS) or JDK 17 and Android Studio (Android), then run `npx expo prebuild`, `npx pod-install`, and `npx expo run:ios` / `npx expo run:android`. Generated `ios` and `android` directories are ignored to prevent stale native dependencies from drifting from SDK 54.
 
-With scope: `https://api.businesscentral.dynamics.com/.default`
+## Demo Mode Guide
 
----
+Edit arrays in `src/services/mockData.ts` to change vendors, items, purchase orders, order lines, posted invoices, units and locations. Keep IDs and vendor/item references consistent. Seeds contain at least 10 orders with 2–4 lines each, eight vendors, 15 items, five invoices, five units and three warehouses. Order dates are relative to the current month for useful dashboard data.
+
+Service reads return copies; changes persist only for the running app session. Reloading the JS runtime or selecting Settings → Clear cached data restores the seeds. Signing out preserves demo session data until reset. Login state alone persists with AsyncStorage. No device or business data leaves the app.
+
+`bcApi.ts` exposes named functions and `bcApi`, uses typed `MockApiError` errors, and supports OData-style `$filter`, `$orderby`, `$top`, `$skip` (plus `filter`, `orderby`, `top` aliases). Supported filters: comparisons and `contains`, `startswith`, `endswith`, joined by `and` / `or`. Unsupported expressions reject with a typed 400 error. Call `simulateNextError()` to exercise a single failure deterministically. Failed validation never changes state. Receiving an open order marks it received and creates one posted invoice; repeat receipt is rejected.
+
+For a future Business Central integration, replace the exported service implementation with an adapter that preserves the same signatures. Put OAuth credentials and privileged receive/post operations on a secure backend; do not ship client secrets in the mobile bundle. Map BC receipt state (`fullyReceived`) into the app's Received display status. Add server pagination, concurrency, authorization and integration tests before enabling a real connection.
 
 ## Azure Document Intelligence (Future)
 
-> This feature is planned for a future release.
+The scan screen is a simulation and does not analyze files. A future backend can accept a camera image or PDF, call Azure Document Intelligence, and return extracted fields for user review. Provision an Azure resource and train a custom extraction model in Document Intelligence Studio with labeled vendor name, invoice number/date, line items, quantities, unit costs, discounts, tax and totals. Keep endpoint credentials on the backend; review low-confidence values and resolve vendors/items against master data before creating orders.
 
-### Overview
+## Screenshots
 
-Azure Document Intelligence (formerly Form Recognizer) will be integrated to enable **purchase invoice scanning**. Users will be able to:
+| Login | Dashboard | Create order | Order detail |
+|---|---|---|---|
+| Pending device capture | Pending device capture | Pending device capture | Pending device capture |
 
-1. **Capture or upload** a purchase invoice document (photo or PDF)
-2. **Extract structured data** using a custom-trained ADI model:
-   - Vendor name and address
-   - Invoice number and date
-   - Line items (description, quantity, unit cost, amount)
-   - Tax amounts and totals
-3. **Auto-populate** a new purchase order with the extracted data
+| Orders | Invoices | Scan demo | Settings |
+|---|---|---|---|
+| Pending device capture | Pending device capture | Pending device capture | Pending device capture |
 
-### Custom Model Training
+## Backlog and delivery
 
-To set up ADI for your organization:
-
-1. Create an **Azure AI Document Intelligence** resource in the Azure Portal
-2. Use **Document Intelligence Studio** to label training documents
-3. Train a **custom extraction model** with these fields:
-   - `vendorName` — Vendor/supplier name
-   - `invoiceNumber` — Invoice/document number
-   - `invoiceDate` — Invoice date
-   - `lineItems` (table) — Description, Quantity, UnitCost, Amount
-   - `subtotal` — Pre-tax total
-   - `taxAmount` — Tax amount
-   - `totalAmount` — Total including tax
-4. Deploy the model and note the **endpoint** and **API key**
-5. Configure the model ID in `appConfig.ts`
-
----
-
-## Local Development Setup
-
-### Prerequisites
-
-- **Node.js** 18+ and npm
-- **React Native CLI**: `npm install -g @react-native-community/cli`
-- **Xcode** 15+ (for iOS development)
-- **CocoaPods**: `sudo gem install cocoapods`
-- **Android Studio** with Android SDK (for Android development)
-- **Watchman**: `brew install watchman`
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/Alletec-Github/PurchaseEase.git
-cd PurchaseEase
-
-# Install dependencies
-npm install
-
-# Install iOS pods
-cd ios && pod install && cd ..
-
-# Copy config and fill in your credentials
-cp src/config/appConfig.example.ts src/config/appConfig.ts
-# Edit src/config/appConfig.ts with your Entra ID and BC values
-```
-
-### Configuration
-
-Copy `src/config/appConfig.example.ts` to `src/config/appConfig.ts` and fill in:
-
-```typescript
-export const appConfig = {
-  // Entra ID (Azure AD) OAuth2
-  clientId: 'YOUR_CLIENT_ID',
-  tenantId: 'YOUR_TENANT_ID',
-  clientSecret: 'YOUR_CLIENT_SECRET',
-
-  // Business Central
-  bcEnvironment: 'YOUR_ENVIRONMENT',  // e.g., 'Production'
-  bcCompanyId: 'YOUR_COMPANY_ID',
-
-  // Demo Login
-  demoUsername: 'rishabh.shukla',
-  demoPassword: '1234',
-
-  // App
-  appName: 'PurchaseEase',
-  primaryColor: '#0078D4',
-};
-```
-
-> **Important:** `appConfig.ts` is gitignored and must not be committed.
-
-### Running the App
-
-```bash
-# iOS
-npx react-native run-ios
-
-# Android
-npx react-native run-android
-
-# Start Metro bundler (if not auto-started)
-npx react-native start
-```
-
----
-
-## Contributing
-
-1. Create a feature branch: `git checkout -b feature/your-feature`
-2. Commit your changes: `git commit -m 'Add your feature'`
-3. Push to the branch: `git push origin feature/your-feature`
-4. Open a Pull Request
-
----
-
-## License
-
-Proprietary — © 2026 Alletec. All rights reserved.
+See [demo backlog](docs/backlog.md). The repository already contained the original 12 merged feature PRs; this demo migration is tracked separately with one issue and sequential PR per workstream.

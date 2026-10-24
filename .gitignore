@@ -73,3 +73,10 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Local demo configuration and Expo generated files
+src/config/appConfig.ts
+.expo/
+dist/
+/ios/
+/android/
