@@ -1,3 +1,9 @@
+import ErrorState from '../components/ErrorState';
+import { localDate } from '../services/mockData';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import type { OrderFlowParamList } from '../types/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,11 +15,10 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
-  SafeAreaView,
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
@@ -26,8 +31,8 @@ const formatCurrency = (amount: number) =>
 const STEPS = ['Select Vendor', 'Add Items', 'Details', 'Review'];
 
 export default function CreateOrderScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<OrderFlowParamList>>();
+  const route = useRoute<RouteProp<OrderFlowParamList, 'CreateOrder'>>();
   const prefillData = route.params?.prefillData;
 
   const [step, setStep] = useState(0);
@@ -44,6 +49,7 @@ export default function CreateOrderScreen() {
   const [itemSearch, setItemSearch] = useState('');
   const [orderLines, setOrderLines] = useState<DraftOrderLine[]>(prefillData?.lines || []);
   const [itemsLoading, setItemsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Step 3: Details
   const [orderDate, setOrderDate] = useState(new Date());
@@ -51,14 +57,25 @@ export default function CreateOrderScreen() {
   const [notes, setNotes] = useState('');
   const [showDatePicker, setShowDatePicker] = useState<'order' | 'receipt' | null>(null);
 
-  useEffect(() => {
-    bcApi.getVendors({ $orderby: 'displayName' }).then(setVendors).catch(() => {}).finally(() => setVendorsLoading(false));
-    bcApi.getItems({ $orderby: 'displayName' }).then(setItems).catch(() => {}).finally(() => setItemsLoading(false));
-  }, []);
+  const loadCatalog = () => {
+    setLoadError(null);setVendorsLoading(true);setItemsLoading(true);
+    Promise.all([bcApi.getVendors({$orderby:'displayName'}),bcApi.getItems({$orderby:'displayName'})])
+      .then(([v,i])=>{setVendors(v);setItems(i);})
+      .catch(error=>setLoadError(error.message || 'Unable to load catalog'))
+      .finally(()=>{setVendorsLoading(false);setItemsLoading(false);});
+  };
+  useEffect(loadCatalog, []);
+  useEffect(()=>{
+    if(prefillData){setSelectedVendor(prefillData.vendor || null);setOrderLines(prefillData.lines || []);setNotes(prefillData.notes || '');setStep(0);}
+  },[prefillData]);
+  const validLines = orderLines.length > 0 && orderLines.every(line =>
+    Number.isFinite(line.quantity) && line.quantity > 0 && Number.isFinite(line.directUnitCost) && line.directUnitCost >= 0 &&
+    Number.isFinite(line.discountPercent) && line.discountPercent >= 0 && line.discountPercent <= 100);
+  const validDates = !receiptDate || localDate(receiptDate) >= localDate(orderDate);
 
   const filteredVendors = vendors.filter(v =>
-    v.displayName.toLowerCase().includes(vendorSearch.toLowerCase()) ||
-    v.number.toLowerCase().includes(vendorSearch.toLowerCase()),
+    !v.blocked && (v.displayName.toLowerCase().includes(vendorSearch.toLowerCase()) ||
+    v.number.toLowerCase().includes(vendorSearch.toLowerCase())),
   );
 
   const filteredItems = items.filter(i =>
@@ -103,25 +120,29 @@ export default function CreateOrderScreen() {
   const canProceed = () => {
     switch (step) {
       case 0: return !!selectedVendor;
-      case 1: return orderLines.length > 0;
-      case 2: return true;
-      case 3: return true;
+      case 1: return validLines;
+      case 2: return validDates;
+      case 3: return validLines && validDates;
       default: return false;
     }
   };
 
   const handleSubmit = async () => {
-    if (!selectedVendor) return;
+    if (!selectedVendor || !validLines || !validDates || submitting) return;
     setSubmitting(true);
+    let createdId: string | null = null;
     try {
       const order = await bcApi.createPurchaseOrder({
         vendorId: selectedVendor.id,
-        orderDate: orderDate.toISOString().split('T')[0],
-        requestedReceiptDate: receiptDate?.toISOString().split('T')[0] || '',
+        orderDate: localDate(orderDate),
+        notes,
+        requestedReceiptDate: receiptDate ? localDate(receiptDate) : '',
       });
 
+      createdId = order.id;
       for (const line of orderLines) {
         await bcApi.createPurchaseOrderLine(order.id, {
+          itemId: line.item.id,
           lineType: line.lineType,
           lineObjectNumber: line.item.number,
           quantity: line.quantity,
@@ -132,11 +153,13 @@ export default function CreateOrderScreen() {
         });
       }
 
+      setSelectedVendor(null);setOrderLines([]);setStep(0);setNotes('');
       Alert.alert('Success', `Purchase Order ${order.number} created successfully!`, [
         { text: 'View Order', onPress: () => navigation.navigate('OrderDetail', { orderId: order.id }) },
-        { text: 'OK', onPress: () => navigation.goBack() },
+        { text: 'OK', onPress: () => navigation.navigate('OrderDetail', {orderId:order.id}) },
       ]);
     } catch (err: any) {
+      if (createdId) { try { await bcApi.deletePurchaseOrder(createdId); } catch { Alert.alert('Partial order saved', 'A draft remains in Orders. Review it before trying again.'); } }
       Alert.alert('Error', err.message || 'Failed to create purchase order');
     } finally {
       setSubmitting(false);
@@ -274,7 +297,7 @@ export default function CreateOrderScreen() {
             </View>
           ))}
           <View style={styles.grandTotalBar}>
-            <Text style={styles.grandTotalLabel}>Running Total</Text>
+            <Text style={styles.grandTotalLabel}>Subtotal (excl. tax)</Text>
             <Text style={styles.grandTotalValue}>{formatCurrency(grandTotal)}</Text>
           </View>
         </>
@@ -308,6 +331,7 @@ export default function CreateOrderScreen() {
         onChangeText={setNotes}
       />
 
+      {!validDates && <Text style={styles.emptyText}>Receipt date must be on or after the order date.</Text>}
       {showDatePicker && (
         <DateTimePicker
           value={showDatePicker === 'order' ? orderDate : (receiptDate || new Date())}
@@ -366,9 +390,11 @@ export default function CreateOrderScreen() {
           </View>
         ))}
         <View style={[styles.reviewRow, styles.reviewTotalRow]}>
-          <Text style={styles.reviewTotalLabel}>Total</Text>
+          <Text style={styles.reviewTotalLabel}>Subtotal</Text>
           <Text style={styles.reviewTotalValue}>{formatCurrency(grandTotal)}</Text>
         </View>
+        <Text>Tax (10%): {formatCurrency(orderLines.reduce((sum,l)=>sum + Math.round(lineTotal(l)*110)/100 - Math.round(lineTotal(l)*100)/100,0))}</Text>
+        <Text>Total including tax: {formatCurrency(orderLines.reduce((sum,l)=>sum + Math.round(lineTotal(l)*110)/100,0))}</Text>
       </View>
     </ScrollView>
   );
@@ -383,7 +409,8 @@ export default function CreateOrderScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right']} style={styles.container}>
+      {loadError && <ErrorState message={loadError} onRetry={loadCatalog}/>}
       {renderStepIndicator()}
       <View style={styles.stepBody}>{renderStep()}</View>
 
