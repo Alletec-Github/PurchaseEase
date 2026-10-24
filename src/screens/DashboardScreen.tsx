@@ -1,3 +1,8 @@
+import { localDate } from '../services/mockData';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import type { OrderFlowParamList } from '../types/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -7,9 +12,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  SafeAreaView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
@@ -37,7 +41,7 @@ const getStatusBg = (status: string) => {
 };
 
 export default function DashboardScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<OrderFlowParamList>>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,14 +59,13 @@ export default function DashboardScreen() {
       setError(null);
       const orders = await bcApi.getPurchaseOrders({
         $orderby: 'orderDate desc',
-        $top: 50,
       });
 
       const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const monthStart = localDate(new Date(now.getFullYear(), now.getMonth(), 1));
 
-      const openOrders = orders.filter(o => o.status === 'Open');
-      const thisMonthOrders = orders.filter(o => o.orderDate >= monthStart);
+      const openOrders = orders.filter(o => o.status === 'Open' && !o.fullyReceived);
+      const thisMonthOrders = orders.filter(o => o.orderDate >= monthStart && o.orderDate <= localDate(new Date(now.getFullYear(),now.getMonth()+1,0)));
       const pendingReceipt = orders.filter(o => o.status === 'Open' && !o.fullyReceived);
       const totalAmount = openOrders.reduce((sum, o) => sum + o.totalAmountIncludingTax, 0);
 
@@ -113,14 +116,14 @@ export default function DashboardScreen() {
     );
   }
 
-  const summaryCards = [
+  const summaryCards: {title:string;value:string;icon:React.ComponentProps<typeof Icon>['name'];color:string}[] = [
     { title: 'Open Orders', value: stats.totalOpen.toString(), icon: 'file-document-outline', color: theme.colors.statusOpen },
     { title: 'This Month', value: stats.thisMonth.toString(), icon: 'calendar-month', color: theme.colors.warning },
     { title: 'Pending Receipt', value: stats.pendingReceipt.toString(), icon: 'truck-delivery', color: theme.colors.statusInReview },
     { title: 'Total Amount', value: formatCurrency(stats.totalAmount), icon: 'currency-usd', color: theme.colors.success },
   ];
 
-  const quickActions = [
+  const quickActions: {title:string;icon:React.ComponentProps<typeof Icon>['name'];color:string;onPress:()=>void}[] = [
     { title: 'New Order', icon: 'plus-circle', color: theme.colors.primary, onPress: () => navigation.navigate('CreateOrder') },
     { title: 'Scan Doc', icon: 'camera-document', color: theme.colors.warning, onPress: () => navigation.getParent()?.navigate('CreateTab', { screen: 'ScanDocument' }) },
     { title: 'All Orders', icon: 'format-list-bulleted', color: theme.colors.statusOpen, onPress: () => navigation.getParent()?.navigate('OrdersTab') },
@@ -128,7 +131,7 @@ export default function DashboardScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right']} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}>
