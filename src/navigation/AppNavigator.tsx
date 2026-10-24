@@ -2,7 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { theme } from '../config/theme';
 import type {
   RootStackParamList,
@@ -58,6 +58,7 @@ function DashboardStackScreen() {
         component={CreateOrderScreen}
         options={{ title: 'New Purchase Order' }}
       />
+      <DashboardStack.Screen name="EditOrder" component={EditOrderScreen} options={{title:'Edit Order'}} />
     </DashboardStack.Navigator>
   );
 }
@@ -97,6 +98,8 @@ function CreateStackScreen() {
         component={ScanDocumentScreen}
         options={{ title: 'Scan Document' }}
       />
+      <CreateStack.Screen name="OrderDetail" component={OrderDetailScreen} options={{title:'Order Detail'}} />
+      <CreateStack.Screen name="EditOrder" component={EditOrderScreen} options={{title:'Edit Order'}} />
     </CreateStack.Navigator>
   );
 }
@@ -130,7 +133,7 @@ function SettingsStackScreen() {
   );
 }
 
-const tabIcons: Record<keyof BottomTabParamList, string> = {
+const tabIcons: Record<keyof BottomTabParamList, React.ComponentProps<typeof Icon>['name']> = {
   DashboardTab: 'home',
   OrdersTab: 'file-document',
   CreateTab: 'plus-circle',
@@ -164,8 +167,7 @@ function MainTabNavigator() {
         tabBarStyle: {
           borderTopColor: theme.colors.border,
           backgroundColor: theme.colors.white,
-          paddingBottom: 4,
-          height: 56,
+
         },
         tabBarLabelStyle: {
           fontSize: 11,
