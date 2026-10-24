@@ -1,3 +1,1 @@
-module.exports = {
-  preset: '@react-native/jest-preset',
-};
+module.exports = { preset: 'jest-expo', testMatch: ['**/__tests__/**/*.test.ts?(x)'] };
