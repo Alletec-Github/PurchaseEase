@@ -1,54 +1,19 @@
-import type { DraftOrder, ScannedDocumentResult } from './app';
-
-// ── Root Stack (Auth vs Main) ────────────────────────────
-
-export type RootStackParamList = {
-  Login: undefined;
-  Main: undefined;
+import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { DraftOrder } from './app';
+export type RootStackParamList={Login:undefined;Main:undefined};
+export type OrderFlowParamList={
+  DashboardHome:undefined;OrderList:undefined;OrderDetail:{orderId:string};EditOrder:{orderId:string};
+  CreateOrder:{prefillData?:Partial<DraftOrder>;prefillKey?:string}|undefined;ScanDocument:undefined;
 };
-
-// ── Bottom Tab Navigator ─────────────────────────────────
-
-export type BottomTabParamList = {
-  DashboardTab: undefined;
-  OrdersTab: undefined;
-  CreateTab: undefined;
-  InvoicesTab: undefined;
-  SettingsTab: undefined;
-};
-
-// ── Dashboard Stack ──────────────────────────────────────
-
-export type DashboardStackParamList = {
-  DashboardHome: undefined;
-  OrderDetail: { orderId: string };
-  CreateOrder: { prefillData?: Partial<DraftOrder> } | undefined;
-};
-
-// ── Orders Stack ─────────────────────────────────────────
-
-export type OrdersStackParamList = {
-  OrderList: undefined;
-  OrderDetail: { orderId: string };
-  EditOrder: { orderId: string };
-};
-
-// ── Create Stack ─────────────────────────────────────────
-
-export type CreateStackParamList = {
-  CreateOrder: { prefillData?: Partial<DraftOrder> } | undefined;
-  ScanDocument: undefined;
-};
-
-// ── Invoices Stack ───────────────────────────────────────
-
-export type InvoicesStackParamList = {
-  PostedInvoices: undefined;
-  InvoiceDetail: { invoiceId: string };
-};
-
-// ── Settings Stack ───────────────────────────────────────
-
-export type SettingsStackParamList = {
-  Settings: undefined;
+export type DashboardStackParamList=OrderFlowParamList;
+export type OrdersStackParamList=OrderFlowParamList;
+export type CreateStackParamList=OrderFlowParamList;
+export type InvoicesStackParamList={PostedInvoices:undefined;InvoiceDetail:{invoiceId:string}};
+export type SettingsStackParamList={Settings:undefined};
+export type BottomTabParamList={
+  DashboardTab:NavigatorScreenParams<DashboardStackParamList>|undefined;
+  OrdersTab:NavigatorScreenParams<OrdersStackParamList>|undefined;
+  CreateTab:NavigatorScreenParams<CreateStackParamList>|undefined;
+  InvoicesTab:NavigatorScreenParams<InvoicesStackParamList>|undefined;
+  SettingsTab:NavigatorScreenParams<SettingsStackParamList>|undefined;
 };
