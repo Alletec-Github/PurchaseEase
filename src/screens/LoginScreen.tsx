@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 import {
   View,
@@ -5,21 +6,19 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAuth } from '../services/auth';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { theme } from '../config/theme';
 import { appConfig } from '../config/appConfig';
 
-const AUTH_KEY = '@PurchaseEase:isLoggedIn';
-const USER_KEY = '@PurchaseEase:user';
 
 export default function LoginScreen() {
+  const { signIn } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -37,31 +36,11 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     if (!validate()) return;
     setLoading(true);
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    if (
-      username.trim() === appConfig.demoUsername &&
-      password === appConfig.demoPassword
-    ) {
-      await AsyncStorage.setItem(AUTH_KEY, 'true');
-      await AsyncStorage.setItem(
-        USER_KEY,
-        JSON.stringify({
-          username: username.trim(),
-          displayName: 'Rishabh Shukla',
-          isLoggedIn: true,
-          loginTimestamp: Date.now(),
-        }),
-      );
-      // Force reload to re-evaluate auth state in App.tsx
-      const RNRestart = require('react-native');
-      RNRestart.DevSettings?.reload?.();
-      // Fallback: the app should re-check auth
-    } else {
-      Alert.alert('Login Failed', 'Invalid username or password. Please try again.');
-    }
-    setLoading(false);
+    try {
+      await signIn(username, password);
+    } catch (error) {
+      Alert.alert('Login Failed', error instanceof Error ? error.message : 'Unable to save session. Please retry.');
+    } finally { setLoading(false); }
   };
 
   return (
@@ -130,7 +109,7 @@ export default function LoginScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <Icon name="shield-check" size={14} color={theme.colors.textLight} />
-            <Text style={styles.footerText}>Secured with Microsoft Entra ID</Text>
+            <Text style={styles.footerText}>Demo sign-in · No live data connection</Text>
           </View>
         </View>
       </KeyboardAvoidingView>
