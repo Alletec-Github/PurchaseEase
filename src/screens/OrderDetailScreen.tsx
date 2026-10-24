@@ -1,3 +1,7 @@
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import type { OrderFlowParamList } from '../types/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -7,10 +11,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   RefreshControl,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
@@ -38,8 +41,8 @@ const getStatusBg = (status: string) => {
 };
 
 export default function OrderDetailScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<OrderFlowParamList>>();
+  const route = useRoute<RouteProp<OrderFlowParamList, 'OrderDetail'>>();
   const { orderId } = route.params;
 
   const [order, setOrder] = useState<PurchaseOrder | null>(null);
@@ -135,7 +138,8 @@ export default function OrderDetailScreen() {
     return (
       <View style={styles.centered}>
         <Icon name="alert-circle" size={48} color={theme.colors.error} />
-        <Text style={styles.errorText}>Order not found</Text>
+        <Text style={styles.errorText}>Unable to load order</Text>
+        <TouchableOpacity onPress={()=>fetchData()}><Text>Retry</Text></TouchableOpacity>
       </View>
     );
   }
@@ -144,7 +148,7 @@ export default function OrderDetailScreen() {
   const displayStatus = isReceived ? 'Received' : order.status;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right']} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true); }} tintColor={theme.colors.primary} />}>
@@ -172,7 +176,8 @@ export default function OrderDetailScreen() {
             </View>
           </View>
 
-          {/* Dates */}
+          {!!order.notes && <Text style={styles.vendorAddress}>Notes: {order.notes}</Text>}
+        {/* Dates */}
           <View style={styles.datesRow}>
             <View style={styles.dateItem}>
               <Text style={styles.dateLabel}>Order Date</Text>
@@ -202,7 +207,7 @@ export default function OrderDetailScreen() {
             </View>
             {order.discountAmount > 0 && (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Discount</Text>
+                <Text style={styles.totalLabel}>Discount (included above)</Text>
                 <Text style={[styles.totalValue, { color: theme.colors.success }]}>-{formatCurrency(order.discountAmount)}</Text>
               </View>
             )}

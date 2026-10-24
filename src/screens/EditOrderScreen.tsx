@@ -1,3 +1,9 @@
+import { localDate } from '../services/mockData';
+import ErrorState from '../components/ErrorState';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import type { OrderFlowParamList } from '../types/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,11 +14,10 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  SafeAreaView,
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
@@ -22,11 +27,13 @@ const formatCurrency = (amount: number) =>
   '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 export default function EditOrderScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<OrderFlowParamList>>();
+  const route = useRoute<RouteProp<OrderFlowParamList, 'EditOrder'>>();
   const { orderId } = route.params;
 
   const [loading, setLoading] = useState(true);
+  const [error,setError]=useState<string|null>(null);
+  const [loadKey,setLoadKey]=useState(0);
   const [saving, setSaving] = useState(false);
   const [order, setOrder] = useState<PurchaseOrder | null>(null);
   const [lines, setLines] = useState<PurchaseOrderLine[]>([]);
@@ -38,29 +45,33 @@ export default function EditOrderScreen() {
   const [itemSearch, setItemSearch] = useState('');
 
   useEffect(() => {
+    setLoading(true);setError(null);
     Promise.all([
       bcApi.getPurchaseOrder(orderId),
       bcApi.getPurchaseOrderLines(orderId),
       bcApi.getItems({ $orderby: 'displayName' }),
     ]).then(([o, l, i]) => {
+      if(o.fullyReceived){setError('Received orders are read-only');return;}
       setOrder(o);
       setLines(l);
       setItems(i);
       setOrderDate(new Date(o.orderDate));
       if (o.requestedReceiptDate) setReceiptDate(new Date(o.requestedReceiptDate));
     }).catch((err) => {
-      Alert.alert('Error', err.message || 'Failed to load order');
+      setError(err.message || 'Failed to load order');
     }).finally(() => setLoading(false));
-  }, [orderId]);
+  }, [orderId,loadKey]);
 
   const handleSave = async () => {
-    if (!order) return;
+    if (!order || saving) return;
+    if(lines.some(l=>!Number.isFinite(l.quantity)||l.quantity<=0||!Number.isFinite(l.directUnitCost)||l.directUnitCost<0||!Number.isFinite(l.discountPercent)||l.discountPercent<0||l.discountPercent>100)){Alert.alert('Invalid line','Use a positive quantity, nonnegative cost and a discount from 0–100.');return;}
     setSaving(true);
     try {
       await bcApi.updatePurchaseOrder(orderId, {
-        orderDate: orderDate.toISOString().split('T')[0],
-        requestedReceiptDate: receiptDate?.toISOString().split('T')[0] || '',
+        orderDate: localDate(orderDate),
+        requestedReceiptDate: receiptDate ? localDate(receiptDate) : '',
       }, order['@odata.etag']);
+      for(const line of lines){await bcApi.updatePurchaseOrderLine(orderId,line.id,{quantity:line.quantity,directUnitCost:line.directUnitCost,discountPercent:line.discountPercent});}
       Alert.alert('Saved', 'Order updated successfully');
       navigation.goBack();
     } catch (err: any) {
@@ -112,8 +123,10 @@ export default function EditOrderScreen() {
     return <View style={styles.centered}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
   }
 
+  if(error)return <ErrorState message={error} onRetry={()=>setLoadKey(key=>key+1)}/>;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.sectionTitle}>Order Details</Text>
         <View style={styles.card}>
@@ -176,6 +189,7 @@ export default function EditOrderScreen() {
           </View>
         )}
 
+        <Text style={styles.lineInfo}>Additions and deletions apply immediately. Save Changes applies dates and edited line values.</Text>
         {lines.map(line => (
           <View key={line.id} style={styles.lineCard}>
             <View style={styles.lineTop}>
@@ -184,8 +198,11 @@ export default function EditOrderScreen() {
                 <Icon name="delete-outline" size={20} color={theme.colors.error} />
               </TouchableOpacity>
             </View>
+            <View style={{flexDirection:'row',gap:12,marginTop:12}}>
+              {(['quantity','directUnitCost','discountPercent'] as const).map((field,index)=><View key={field} style={{flex:1}}><Text style={styles.fieldLabel}>{['Qty','Unit cost','Disc %'][index]}</Text><TextInput accessibilityLabel={['Quantity','Unit cost','Discount percent'][index]} keyboardType="decimal-pad" style={styles.dateButton} value={String(line[field])} onChangeText={text=>setLines(current=>current.map(row=>row.id===line.id?{...row,[field]:Number(text)}:row))}/></View>)}
+            </View>
             <Text style={styles.lineInfo}>
-              {line.quantity} x {formatCurrency(line.directUnitCost)} = {formatCurrency(line.amountIncludingTax)}
+              {line.quantity} x {formatCurrency(line.directUnitCost)} = {formatCurrency(Math.round(line.quantity*line.directUnitCost*(1-line.discountPercent/100)*110)/100)}
             </Text>
           </View>
         ))}
@@ -193,7 +210,7 @@ export default function EditOrderScreen() {
 
       <View style={styles.actionBar}>
         <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelText}>Cancel</Text>
+          <Text style={styles.cancelText}>Back</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.saveButton, saving && { opacity: 0.5 }]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color={theme.colors.white} /> : <Text style={styles.saveText}>Save Changes</Text>}

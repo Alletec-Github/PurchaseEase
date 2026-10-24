@@ -1,3 +1,7 @@
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import type { OrderFlowParamList } from '../types/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -8,9 +12,8 @@ import {
   TextInput,
   RefreshControl,
   ActivityIndicator,
-  SafeAreaView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
@@ -41,7 +44,7 @@ const getStatusBg = (status: string) => {
 const TABS: OrderFilterTab[] = ['All', 'Draft', 'Open', 'Received'];
 
 export default function OrderListScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<OrderFlowParamList>>();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,7 +111,7 @@ export default function OrderListScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right']} style={styles.container}>
       {/* Search */}
       <View style={styles.searchContainer}>
         <Icon name="magnify" size={20} color={theme.colors.textSecondary} />
