@@ -14,6 +14,9 @@ export interface BCApiError {
 
 export interface ODataQueryParams {
   $filter?: string;
+  filter?: string;
+  orderby?: string;
+  top?: number;
   $orderby?: string;
   $top?: number;
   $skip?: number;
@@ -24,9 +27,10 @@ export interface ODataQueryParams {
 
 // ── Purchase Order ───────────────────────────────────────
 
-export type PurchaseOrderStatus = 'Draft' | 'In Review' | 'Open';
+export type PurchaseOrderStatus = 'Draft' | 'In Review' | 'Open' | 'Received';
 
 export interface PurchaseOrder {
+  notes?: string;
   id: string;
   number: string;
   orderDate: string;
