@@ -1,4 +1,4 @@
-import type { PurchaseOrderLine, Vendor, Item } from './api';
+import type { Vendor, Item } from './api';
 
 // ── Draft Order (local state during creation) ────────────
 

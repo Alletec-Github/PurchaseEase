@@ -18,7 +18,7 @@ PurchaseEase helps purchasing teams create, manage and track orders. It runs in 
 
 ## Stack and architecture
 
-Expo SDK 54 / React Native 0.81 / React 19.1, TypeScript, React Navigation 7 native stacks and bottom tabs, Expo MaterialCommunityIcons, AsyncStorage, native date picker, Gesture Handler and Reanimated. Axios is available for a future API adapter but demo services make no HTTP requests.
+Expo SDK 54 / React Native 0.81 / React 19.1, TypeScript, React Navigation 7 native stacks and bottom tabs, Expo MaterialCommunityIcons, AsyncStorage, native date picker, Gesture Handler and Reanimated. Axios is available for a future API adapter but demo services make no HTTP requests. The project `.npmrc` keeps npm peer resolution consistent with the explicitly pinned Expo platform dependencies.
 
 `src/screens` contains screens, `src/navigation` owns routes, `src/components` holds shared UI, `src/types` defines BC-shaped entities and app types, `src/config` stores theme and local configuration. Screens depend on the `bcApi` service interface; `src/services/mockData.ts` owns seeds and `bcApi.ts` implements session mutations with 300–600ms latency.
 

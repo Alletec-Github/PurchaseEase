@@ -39,10 +39,13 @@ export function newOrder(vendor: Vendor, id: string, number: string, date = loca
     discountAmount:0,lastModifiedDateTime:new Date().toISOString(),notes:'',
   };
 }
+export function lineAmounts(quantity: number, directUnitCost: number, discountPercent: number) {
+  const discountAmount = money(quantity * directUnitCost * discountPercent / 100);
+  const amountExcludingTax = money(quantity * directUnitCost - discountAmount);
+  return {discountAmount, amountExcludingTax, amountIncludingTax: money(amountExcludingTax * 1.1)};
+}
 export function calculateLine(line: PurchaseOrderLine): PurchaseOrderLine {
-  const discountAmount=money(line.quantity*line.directUnitCost*line.discountPercent/100);
-  const amountExcludingTax=money(line.quantity*line.directUnitCost-discountAmount);
-  return {...line,discountAmount,amountExcludingTax,amountIncludingTax:money(amountExcludingTax*1.1)};
+  return {...line, ...lineAmounts(line.quantity, line.directUnitCost, line.discountPercent)};
 }
 export function newLine(order: PurchaseOrder, item: Item, id: string, sequence: number): PurchaseOrderLine {
   return calculateLine({id,documentId:order.id,sequence,itemId:item.id,lineType:'Item',lineObjectNumber:item.number,

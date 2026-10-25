@@ -1,6 +1,5 @@
 import ErrorState from '../components/ErrorState';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RouteProp } from '@react-navigation/native';
 import type { InvoicesStackParamList } from '../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useCallback } from 'react';

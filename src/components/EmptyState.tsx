@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { theme } from '../config/theme';
 
 interface Props {
-  icon?: string;
+  icon?: React.ComponentProps<typeof Icon>['name'];
   title: string;
   subtitle?: string;
 }
