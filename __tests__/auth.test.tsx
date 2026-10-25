@@ -3,6 +3,7 @@ import TestRenderer,{act} from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AuthProvider,useAuth} from '../src/services/auth';
 import {appConfig} from '../src/config/appConfig';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@react-native-async-storage/async-storage',()=>require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 let auth:ReturnType<typeof useAuth>;
 function Harness(){auth=useAuth();return null;}

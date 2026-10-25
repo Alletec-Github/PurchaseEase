@@ -1,5 +1,6 @@
+import DecimalInput from '../components/DecimalInput';
 import ErrorState from '../components/ErrorState';
-import { localDate } from '../services/mockData';
+import { localDate, lineAmounts, money } from '../services/mockData';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { OrderFlowParamList } from '../types/navigation';
@@ -111,11 +112,11 @@ export default function CreateOrderScreen() {
   };
 
   const lineTotal = (line: DraftOrderLine) => {
-    const subtotal = line.quantity * line.directUnitCost;
-    return subtotal - (subtotal * line.discountPercent / 100);
+    return Number.isFinite(line.quantity + line.directUnitCost + line.discountPercent) ? lineAmounts(line.quantity, line.directUnitCost, line.discountPercent).amountExcludingTax : 0;
   };
 
-  const grandTotal = orderLines.reduce((sum, l) => sum + lineTotal(l), 0);
+  const grandTotal = money(orderLines.reduce((sum, l) => sum + lineTotal(l), 0));
+  const totalIncludingTax = money(orderLines.reduce((sum,l)=>sum+lineAmounts(l.quantity,l.directUnitCost,l.discountPercent).amountIncludingTax,0));
 
   const canProceed = () => {
     switch (step) {
@@ -253,6 +254,7 @@ export default function CreateOrderScreen() {
       )}
 
       {/* Order Lines */}
+      {!validLines && orderLines.length > 0 && <Text style={styles.emptyText}>Enter a positive quantity, nonnegative cost and a discount between 0 and 100.</Text>}
       {orderLines.length > 0 && (
         <>
           <Text style={styles.subsectionTitle}>Order Lines ({orderLines.length})</Text>
@@ -267,28 +269,31 @@ export default function CreateOrderScreen() {
               <View style={styles.lineInputs}>
                 <View style={styles.lineInputGroup}>
                   <Text style={styles.lineLabel}>Qty</Text>
-                  <TextInput
+                  <DecimalInput
+                    accessibilityLabel="Quantity"
                     style={styles.lineInput}
-                    value={line.quantity.toString()}
-                    onChangeText={t => updateLine(line.tempId, { quantity: parseFloat(t) || 0 })}
+                    value={line.quantity}
+                    onChangeValue={value => updateLine(line.tempId, { quantity: value })}
                     keyboardType="numeric"
                   />
                 </View>
                 <View style={styles.lineInputGroup}>
                   <Text style={styles.lineLabel}>Unit Cost</Text>
-                  <TextInput
+                  <DecimalInput
+                    accessibilityLabel="Unit cost"
                     style={styles.lineInput}
-                    value={line.directUnitCost.toString()}
-                    onChangeText={t => updateLine(line.tempId, { directUnitCost: parseFloat(t) || 0 })}
+                    value={line.directUnitCost}
+                    onChangeValue={value => updateLine(line.tempId, { directUnitCost: value })}
                     keyboardType="numeric"
                   />
                 </View>
                 <View style={styles.lineInputGroup}>
                   <Text style={styles.lineLabel}>Disc %</Text>
-                  <TextInput
+                  <DecimalInput
+                    accessibilityLabel="Discount percent"
                     style={styles.lineInput}
-                    value={line.discountPercent.toString()}
-                    onChangeText={t => updateLine(line.tempId, { discountPercent: parseFloat(t) || 0 })}
+                    value={line.discountPercent}
+                    onChangeValue={value => updateLine(line.tempId, { discountPercent: value })}
                     keyboardType="numeric"
                   />
                 </View>
@@ -393,8 +398,8 @@ export default function CreateOrderScreen() {
           <Text style={styles.reviewTotalLabel}>Subtotal</Text>
           <Text style={styles.reviewTotalValue}>{formatCurrency(grandTotal)}</Text>
         </View>
-        <Text>Tax (10%): {formatCurrency(orderLines.reduce((sum,l)=>sum + Math.round(lineTotal(l)*110)/100 - Math.round(lineTotal(l)*100)/100,0))}</Text>
-        <Text>Total including tax: {formatCurrency(orderLines.reduce((sum,l)=>sum + Math.round(lineTotal(l)*110)/100,0))}</Text>
+        <Text>Tax (10%): {formatCurrency(money(totalIncludingTax-grandTotal))}</Text>
+        <Text>Total including tax: {formatCurrency(totalIncludingTax)}</Text>
       </View>
     </ScrollView>
   );

@@ -1,5 +1,4 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RouteProp } from '@react-navigation/native';
 import type { OrderFlowParamList } from '../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useCallback } from 'react';

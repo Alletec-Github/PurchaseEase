@@ -1,12 +1,12 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { theme } from '../config/theme';
 
 interface Props {
   title: string;
   onPress: () => void;
-  icon?: string;
+  icon?: React.ComponentProps<typeof Icon>['name'];
   variant?: 'primary' | 'secondary' | 'danger';
   loading?: boolean;
   disabled?: boolean;

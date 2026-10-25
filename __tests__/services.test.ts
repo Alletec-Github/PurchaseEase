@@ -61,3 +61,10 @@ test('nested OData filtering, aliases, ordering, pagination and escaped literals
 test('all service operations simulate 300–600ms delay',async()=>{
   let resolved=false;const request=bcApi.getVendors().then(()=>{resolved=true;});await jest.advanceTimersByTimeAsync(299);expect(resolved).toBe(false);await jest.advanceTimersByTimeAsync(301);await request;expect(resolved).toBe(true);
 });
+
+test('fractional costs and discounts use the same rounded line amounts in saved totals',async()=>{
+  const order=await run(bcApi.createPurchaseOrder({vendorId:vendors[0].id}));
+  const line=await run(bcApi.createPurchaseOrderLine(order.id,{itemId:items[0].id,quantity:3.5,directUnitCost:14.25,discountPercent:7.5}));
+  expect(line.discountAmount).toBe(3.74);expect(line.amountExcludingTax).toBe(46.14);expect(line.amountIncludingTax).toBe(50.75);
+  expect((await run(bcApi.getPurchaseOrder(order.id))).totalAmountIncludingTax).toBe(line.amountIncludingTax);
+});

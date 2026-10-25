@@ -1,4 +1,5 @@
-import { localDate } from '../services/mockData';
+import DecimalInput from '../components/DecimalInput';
+import { localDate, lineAmounts } from '../services/mockData';
 import ErrorState from '../components/ErrorState';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
@@ -199,10 +200,10 @@ export default function EditOrderScreen() {
               </TouchableOpacity>
             </View>
             <View style={{flexDirection:'row',gap:12,marginTop:12}}>
-              {(['quantity','directUnitCost','discountPercent'] as const).map((field,index)=><View key={field} style={{flex:1}}><Text style={styles.fieldLabel}>{['Qty','Unit cost','Disc %'][index]}</Text><TextInput accessibilityLabel={['Quantity','Unit cost','Discount percent'][index]} keyboardType="decimal-pad" style={styles.dateButton} value={String(line[field])} onChangeText={text=>setLines(current=>current.map(row=>row.id===line.id?{...row,[field]:Number(text)}:row))}/></View>)}
+              {(['quantity','directUnitCost','discountPercent'] as const).map((field,index)=><View key={field} style={{flex:1}}><Text style={styles.fieldLabel}>{['Qty','Unit cost','Disc %'][index]}</Text><DecimalInput accessibilityLabel={['Quantity','Unit cost','Discount percent'][index]} keyboardType="decimal-pad" style={styles.dateButton} value={line[field]} onChangeValue={value=>setLines(current=>current.map(row=>row.id===line.id?{...row,[field]:value}:row))}/></View>)}
             </View>
             <Text style={styles.lineInfo}>
-              {line.quantity} x {formatCurrency(line.directUnitCost)} = {formatCurrency(Math.round(line.quantity*line.directUnitCost*(1-line.discountPercent/100)*110)/100)}
+              {line.quantity} x {formatCurrency(line.directUnitCost)} = {formatCurrency(lineAmounts(line.quantity,line.directUnitCost,line.discountPercent).amountIncludingTax)}
             </Text>
           </View>
         ))}
