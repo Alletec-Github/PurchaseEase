@@ -38,7 +38,7 @@ npm start
 Scan Metro's QR code in compatible Expo Go on a phone on the same network. Use `npx expo start --tunnel` if LAN discovery is unavailable. The local config is gitignored; never commit credentials. Demo credentials provide a local UI gate, not production authentication.
 
 ```sh
-npm run ios       # Expo Go in an installed iOS Simulator
+npm run ios       # Expo Go in Device Hub (Xcode 27+) or Simulator (older Xcode)
 npm run android   # Expo Go in a running Android emulator
 npm run web       # Browser preview
 npm run typecheck
@@ -47,7 +47,7 @@ npx expo-doctor
 npx expo export --platform ios --platform android
 ```
 
-For iOS Simulator install full Xcode, its iOS runtime and select Xcode as the active developer directory. Command Line Tools alone cannot launch simulators. Android needs Android Studio, SDK and an emulator or a USB-debugging device.
+For iOS Simulator install full Xcode, its iOS runtime and select Xcode as the active developer directory. The iOS launcher detects Apple’s [Device Hub](https://developer.apple.com/documentation/xcode/device-hub) in Xcode 27 or the legacy Simulator app, selects an available iPhone, installs the Expo Go client matching SDK 54, and opens this project. It reuses Metro on port 8081 or starts it if needed; set `EXPO_PORT` to use another port. Command Line Tools alone cannot launch simulators. Android needs Android Studio, SDK and an emulator or a USB-debugging device.
 
 This is an Expo managed project. Pods are unnecessary for Expo Go. For native builds, install Xcode and CocoaPods (iOS) or JDK 17 and Android Studio (Android), then run `npx expo prebuild`, `npx pod-install`, and `npx expo run:ios` / `npx expo run:android`. Generated `ios` and `android` directories are ignored to prevent stale native dependencies from drifting from SDK 54.
 
@@ -69,7 +69,7 @@ The scan screen is a simulation and does not analyze files. A future backend can
 
 | Login | Dashboard | Create order | Order detail |
 |---|---|---|---|
-| Pending device capture | Pending device capture | Pending device capture | Pending device capture |
+| [iOS login](docs/screenshots/login-ios.png) | Pending device capture | Pending device capture | Pending device capture |
 
 | Orders | Invoices | Scan demo | Settings |
 |---|---|---|---|
