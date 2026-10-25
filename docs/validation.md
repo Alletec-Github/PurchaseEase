@@ -26,6 +26,9 @@ CI copies the placeholder config before validation. Actual local demo credential
 
 ## Environment limitations
 
+- GitHub Actions run 40150392604 could not start any validation steps. Its annotation states: `The job was not started because your account is locked due to a billing issue.` The workflow is committed for use once the account issue is resolved; all reported validation results above were executed locally.
+- `CI=1 npm run ios -- --port 8081` was attempted and stopped with Expo requiring a full Xcode installation.
+
 - Copilot issue assignment was attempted. GitHub responded: `Copilot agent is not enabled in this repository.` The issues were implemented directly through sequential linked feature PRs.
 - This Mac has Apple Command Line Tools but no full Xcode installation or iOS Simulator runtime. `xcrun simctl` is unavailable. Expo Go does not require installing pods. A simulator launch and native iOS compilation cannot be verified on this host.
 
