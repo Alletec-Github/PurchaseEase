@@ -30,8 +30,12 @@ CI copies the placeholder config before validation. Actual local demo credential
 - `CI=1 npm run ios -- --port 8081` was attempted and stopped with Expo requiring a full Xcode installation.
 
 - Copilot issue assignment was attempted. GitHub responded: `Copilot agent is not enabled in this repository.` The issues were implemented directly through sequential linked feature PRs.
-- This Mac has Apple Command Line Tools but no full Xcode installation or iOS Simulator runtime. `xcrun simctl` is unavailable. Expo Go does not require installing pods. A simulator launch and native iOS compilation cannot be verified on this host.
+- The initial host lacked Xcode. This was resolved by installing Xcode 27.1, selecting its developer directory and completing first-launch setup. PurchaseEase was subsequently launched in Expo Go SDK 54 on an iPhone 17 Pro with iOS 26.3, and its login screen was visually verified. See `docs/screenshots/login-ios.png`. Native app compilation remains separate from this Expo Go check.
 
 ## Dependency audit
 
 `npm audit` reports 15 dependency advisories (6 high, 9 moderate) in the SDK 54 dependency tree. A nonbreaking `npm audit fix` was attempted and did not clear them. The direct advisory sources include image-size, node-forge, postcss and uuid; affected parent packages inherit those findings. npm proposes incompatible SDK changes for several paths. No forced SDK downgrade or untested major override was applied. Review these before adding document uploads or a production backend; keep this build in its requested local demo mode.
+
+## Xcode 27 launcher fix
+
+Xcode 27 replaces Simulator.app with Device Hub. `npm run ios` now runs `scripts/ios.mjs`, which detects either viewer, boots an available iPhone, installs the SDK-matched Expo Go client and opens the Metro URL. The launcher was exercised successfully on the installed iPhone 17 Pro simulator. On a first launch, accept the iOS Open in Expo Go confirmation if it appears.

@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "ios": "expo start --ios",
+    "ios": "node scripts/ios.mjs",
     "android": "expo start --android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
