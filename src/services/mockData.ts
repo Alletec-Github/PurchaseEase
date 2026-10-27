@@ -64,7 +64,8 @@ export const purchaseOrders: PurchaseOrder[] = [];
 export const purchaseOrderLines: PurchaseOrderLine[] = [];
 for(let i=0;i<12;i++) {
   const order=newOrder(vendors[i%vendors.length],`order-${i+1}`,`PO-${10001+i}`,dateAgo(i*2));
-  order.status=(['Draft','Open','In Review','Received'] as const)[i%4];order.fullyReceived=order.status==='Received';
+  const status=(['Draft','Open','In Review','Received'] as const)[i%4];
+  order.status=status==='Received'?'Open':status;order.fullyReceived=status==='Received';
   const lines=Array.from({length:2+i%3},(_,j)=>{
     const line=newLine(order,items[(i+j)%items.length],`line-${i}-${j}`,(j+1)*10000);
     line.quantity=(j+1)*5;line.discountPercent=j===1?5:0;

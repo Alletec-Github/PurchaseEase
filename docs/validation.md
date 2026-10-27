@@ -1,41 +1,29 @@
-# Validation and bug fixes
+# Live integration validation — 27 October 2026
 
-The previous implementation depended on live Business Central credentials and React Native 0.85 native projects. It has been migrated to Expo Go SDK 54 / React Native 0.81 with a local demo adapter.
+The existing Expo SDK 54 UI has been reconnected to standard Business Central v2.0 APIs in issue #51. The original feature PRs (#14–#25), later demo migration (#38–#49), and Xcode launcher fix (#50) are preserved.
 
-## Fixed behavior
+## Verified locally
 
-- Sign-in updates React state directly; production builds no longer depend on DevSettings.reload.
-- Sign-out removes the same AsyncStorage keys written by sign-in. Session restoration handles malformed storage.
-- Settings resets actual mock state rather than unrelated cache keys; profile and environment use configured values.
-- Received orders cannot be edited, deleted or received twice. Receipt records quantities and creates a single posted invoice.
-- Line mutations update discounts, tax and order totals. Invalid values and unknown catalog references reject before mutation.
-- Create wizard validates quantity, cost, discounts and receipt dates, persists notes, cleans up partial drafts on failure and can navigate to details from every entry point.
-- Dashboard counts all orders and uses local calendar month boundaries.
-- Scan simulation uses actual vendor and item IDs; revisiting an existing creation screen applies fresh prefill data.
-- Invoice detail uses quoted string filters, existing schema fields, and derived tax amounts. Invoice lists sort by posting date and expose validated date filters and retry states.
-- Expo-bundled icons and safe-area insets replace native linking assumptions and fixed bottom tab heights.
-- Metro, Babel, Jest and TypeScript use Expo SDK 54 configuration. Stale native directories are replaced by generated Expo projects when a native build is needed.
+- TypeScript check and ESLint with zero warnings.
+- 25 tests across four suites: live HTTP adapter contracts, offline mock fixture regression, login persistence/logout, and decimal inputs.
+- All 18 Expo Doctor checks; Expo dependency versions aligned.
+- Production JavaScript/Hermes exports for iOS and Android.
+- Live adapter read-only smoke checks: vendors, items, purchase order list/header/lines, purchase invoice list/detail, units of measure, locations, connection test and cache reset.
+- Actual BC unblocked-vendor enum `_x0020_` handled without hiding eligible vendors.
+- Expo Go SDK 54 launched on iPhone 17 Pro / iOS 26.3. Login screen visually checked; see screenshots/login-ios.png.
+- The iOS launcher detected Metro belonging to another checkout on port 8081 and selected port 8082. The served manifest confirms this workspace is the project root. Other projects' Metro processes were left running.
+- Local credentials file remains gitignored. No credentials or business records were added to source, issues or screenshots.
 
-## Automated checks
+The HTTP adapter tests exercise token encoding/caching/concurrent acquisition, expiry and bounded 401 refresh; OData options and multiple pages; rejecting foreign-company and path-traversal pagination links; ETag PATCH/DELETE; line/header/action URLs and bodies; typed errors without HTTP config/secret leakage; and no automatic retries of ambiguous failed writes.
 
-Final local checks passed: TypeScript, lint with zero warnings, 14 tests across three suites, all 18 Expo Doctor checks, Expo dependency alignment, and iOS / Android / web production bundle export. These checks validate JavaScript and service behavior; they do not constitute device UI testing.
+## Deliberate verification limits
 
-Service and auth regression tests cover seed completeness, order and line CRUD, totals, receipt and invoice creation, read-only protections, invalid inputs, copy isolation, reset, injected errors, OData-style filtering/sorting/pagination, simulated latency, login persistence and logout.
+No live orders were created, edited, deleted, received or invoiced during verification. Write contracts are covered by a mocked Axios transport, not live posting. Authenticated screen interaction and end-to-end live purchasing remain manual acceptance checks. The native UI was launched through Expo Go; no native Xcode compilation or CocoaPods project is required for that workflow.
 
-CI copies the placeholder config before validation. Actual local demo credentials remain gitignored. Native compilation, device interaction and simulator screenshots require the platform toolchains and are separate from JavaScript bundle validation.
+The standard API marks purchase-order status read-only, so release is handled in the BC web client. Notes are standard Comment lines. Tax comes from BC after save. Partial orders remain available for review rather than automatic deletion/retry; multi-record edits are not atomic. Local-currency amounts are labeled LCY unless the company currency is configured, and the dashboard never sums different currencies together.
 
-## Environment limitations
+## GitHub and dependency status
 
-- GitHub Actions run 40150392604 could not start any validation steps. Its annotation states: `The job was not started because your account is locked due to a billing issue.` The workflow is committed for use once the account issue is resolved; all reported validation results above were executed locally.
-- `CI=1 npm run ios -- --port 8081` was attempted and stopped with Expo requiring a full Xcode installation.
+Copilot assignment to #51 was attempted and rejected: `Copilot agent is not enabled in this repository.` The work was implemented directly. The existing repository's earlier validation records reported a GitHub Actions account billing lock; new CI results must be inspected independently and not substituted for the successful local checks above.
 
-- Copilot issue assignment was attempted. GitHub responded: `Copilot agent is not enabled in this repository.` The issues were implemented directly through sequential linked feature PRs.
-- The initial host lacked Xcode. This was resolved by installing Xcode 27.1, selecting its developer directory and completing first-launch setup. PurchaseEase was subsequently launched in Expo Go SDK 54 on an iPhone 17 Pro with iOS 26.3, and its login screen was visually verified. See `docs/screenshots/login-ios.png`. Native app compilation remains separate from this Expo Go check.
-
-## Dependency audit
-
-`npm audit` reports 15 dependency advisories (6 high, 9 moderate) in the SDK 54 dependency tree. A nonbreaking `npm audit fix` was attempted and did not clear them. The direct advisory sources include image-size, node-forge, postcss and uuid; affected parent packages inherit those findings. npm proposes incompatible SDK changes for several paths. No forced SDK downgrade or untested major override was applied. Review these before adding document uploads or a production backend; keep this build in its requested local demo mode.
-
-## Xcode 27 launcher fix
-
-Xcode 27 replaces Simulator.app with Device Hub. `npm run ios` now runs `scripts/ios.mjs`, which detects either viewer, boots an available iPhone, installs the SDK-matched Expo Go client and opens the Metro URL. The launcher was exercised successfully on the installed iPhone 17 Pro simulator. On a first launch, accept the iOS Open in Expo Go confirmation if it appears.
+The existing SDK 54 dependency tree reports 15 npm audit advisories (6 high, 9 moderate). No forced SDK change or untested major dependency override was applied. Direct client credentials satisfy the requested local prototype configuration but must move to a secured backend before distributing mobile builds.

@@ -4,11 +4,21 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 const require=createRequire(import.meta.url);
 const run=(command,args,options={})=>execFileSync(command,args,{encoding:'utf8',...options});
-const port=process.env.EXPO_PORT || '8081';
-if(!/^\d+$/.test(port))throw new Error('EXPO_PORT must be a port number.');
+let port=process.env.EXPO_PORT || '8081';
+if(!/^\d+$/.test(port)||Number(port)<1||Number(port)>65535)throw new Error('EXPO_PORT must be a valid port number.');
 let metro;
-async function ready(){try{return (await (await fetch(`http://127.0.0.1:${port}/status`,{signal:AbortSignal.timeout(2000)})).text()).includes('packager-status:running');}catch{return false;}}
+async function occupied(){try{await fetch(`http://127.0.0.1:${port}/status`,{signal:AbortSignal.timeout(2000)});return true;}catch{return false;}}
+async function ready(){try{
+  const response=await fetch(`http://127.0.0.1:${port}/`,{headers:{'expo-platform':'ios'},signal:AbortSignal.timeout(2000)});
+  const manifest=await response.json();
+  return manifest.extra?.expoGo?.developer?.projectRoot===process.cwd();
+}catch{return false;}}
 try {
+  for(let checked=0;await occupied()&&!await ready();checked++){
+    if(process.env.EXPO_PORT||checked>=20||Number(port)>=65535)throw new Error(`Port ${port} belongs to another project. Set EXPO_PORT to an unused port.`);
+    port=String(Number(port)+1);
+  }
+  console.log(`Using Metro port ${port} for ${process.cwd()}`);
   const developer=run('xcode-select',['-p']).trim();
   const ui=[path.resolve(developer,'../Applications/DeviceHub.app'),path.join(developer,'Applications/Simulator.app')].find(existsSync);
   if(!ui)throw new Error('Install full Xcode from the App Store and finish its first-launch setup.');

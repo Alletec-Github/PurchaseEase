@@ -16,7 +16,6 @@ import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { theme } from '../config/theme';
 import { appConfig } from '../config/appConfig';
 
-
 export default function LoginScreen() {
   const { signIn } = useAuth();
   const [username, setUsername] = useState('');
@@ -109,7 +108,7 @@ export default function LoginScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <Icon name="shield-check" size={14} color={theme.colors.textLight} />
-            <Text style={styles.footerText}>Demo sign-in · No live data connection</Text>
+            <Text style={styles.footerText}>Demo sign-in · Business Central connected app</Text>
           </View>
         </View>
       </KeyboardAvoidingView>

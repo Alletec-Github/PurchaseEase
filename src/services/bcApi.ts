@@ -1,97 +1,123 @@
-import type { PurchaseOrder, PurchaseOrderLine, ODataQueryParams, BCApiError } from '../types/api';
-import { createSeedState, newOrder, newLine, calculateLine, calculateOrder, localDate } from './mockData';
-import { query } from './query';
+import { create, isAxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios';
+import { appConfig } from '../config/appConfig';
+import type { BCApiError, BCApiResponse, ODataQueryParams, PurchaseOrder, PurchaseOrderLine, Vendor, Item, PurchaseInvoice, UnitOfMeasure, Location } from '../types/api';
 
-import { MockApiError } from './errors';
-export { MockApiError } from './errors';
-let state=createSeedState();
-let sequence=10013;
-let lineSequence=100;
-let nextError:BCApiError|null=null;
-const copy=<T,>(value:T):T=>value===undefined?value:JSON.parse(JSON.stringify(value));
-export function simulateNextError(error:BCApiError={code:'SIMULATED_ERROR',message:'Simulated service failure. Please retry.',status:503}) { nextError=error; }
-async function action<T>(fn:()=>T):Promise<T> {
-  await new Promise(resolve=>setTimeout(resolve,300+Math.floor(Math.random()*301)));
-  if(nextError) {const error=nextError;nextError=null;throw new MockApiError(error.code,error.message,error.status);}
-  return copy(fn());
-}
-const fail=(message:string,status=400):never=>{throw new MockApiError(status===404?'NOT_FOUND':status===409?'CONFLICT':'VALIDATION_ERROR',message,status);};
-const findOrder=(id:string)=>state.purchaseOrders.find(o=>o.id===id)??fail('Purchase order not found',404);
-const editable=(id:string)=>{const order=findOrder(id);if(order.fullyReceived)fail('Received orders are read-only',409);return order;};
-const linesFor=(id:string)=>state.purchaseOrderLines.filter(l=>l.documentId===id);
-const recalculate=(id:string)=>calculateOrder(findOrder(id),linesFor(id));
-function validateLine(line:PurchaseOrderLine) {
-  if(!Number.isFinite(line.quantity)||line.quantity<=0)fail('Quantity must be greater than zero');
-  if(!Number.isFinite(line.directUnitCost)||line.directUnitCost<0)fail('Unit cost cannot be negative');
-  if(!Number.isFinite(line.discountPercent)||line.discountPercent<0||line.discountPercent>100)fail('Discount must be between 0 and 100');
-  if(!state.unitsOfMeasure.some(u=>u.code===line.unitOfMeasureCode))fail('Unknown unit of measure');
-}
-function validateDates(order:PurchaseOrder) {
-  for(const value of [order.orderDate,order.requestedReceiptDate].filter(Boolean)) {
-    const parsed=new Date(value+'T12:00:00');
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||Number.isNaN(parsed.getTime())||localDate(parsed)!==value)fail('Enter a valid date');
+export class ApiError extends Error implements BCApiError {
+  constructor(public code: string, message: string, public status: number) {
+    super(message); this.name = 'ApiError';
   }
-  if(order.requestedReceiptDate&&order.requestedReceiptDate<order.orderDate)fail('Receipt date cannot be before order date');
 }
-export const getVendors=(params?:ODataQueryParams)=>action(()=>query(state.vendors,params));
-export const getItems=(params?:ODataQueryParams)=>action(()=>query(state.items,params));
-export const getPurchaseOrders=(params?:ODataQueryParams)=>action(()=>query(state.purchaseOrders,params));
-export const getPurchaseOrder=(id:string)=>action(()=>findOrder(id));
-export const getPurchaseOrderLines=(id:string,params?:ODataQueryParams)=>action(()=>{findOrder(id);return query(linesFor(id),params);});
-export const getPurchaseInvoices=(params?:ODataQueryParams)=>action(()=>query(state.purchaseInvoices,params));
-export const getUnitsOfMeasure=(params?:ODataQueryParams)=>action(()=>query(state.unitsOfMeasure,params));
-export const getLocations=(params?:ODataQueryParams)=>action(()=>query(state.locations,params));
-export const createPurchaseOrder=(data:Partial<PurchaseOrder>)=>action(()=>{
-  const vendor=state.vendors.find(v=>v.id===data.vendorId)??fail('Select a valid vendor');
-  if(vendor.blocked)fail('Vendor is blocked');
-  const number=`PO-${sequence}`;
-  const order={...newOrder(vendor,`order-${sequence}`,number),orderDate:data.orderDate||localDate(),requestedReceiptDate:data.requestedReceiptDate||'',notes:data.notes||''};
-  validateDates(order);sequence++;state.purchaseOrders.push(order);return order;
-});
-export const updatePurchaseOrder=(id:string,data:Partial<PurchaseOrder>,_etag?:string)=>action(()=>{
-  const order=editable(id);
-  if(data.status&&data.status!=='Open'&&data.status!=='In Review'&&data.status!==order.status)fail('Invalid status transition');
-  if(data.status==='Open'&&!linesFor(id).length)fail('Add at least one line before submitting');
-  const updated={...order,orderDate:data.orderDate??order.orderDate,requestedReceiptDate:data.requestedReceiptDate??order.requestedReceiptDate,
-    postingDate:data.postingDate??order.postingDate,notes:data.notes??order.notes,status:data.status??order.status};
-  validateDates(updated);Object.assign(order,updated);recalculate(id);return order;
-});
-export const deletePurchaseOrder=(id:string)=>action(()=>{
-  const order=editable(id);if(order.status!=='Draft')fail('Only draft orders can be deleted',409);
-  state.purchaseOrders=state.purchaseOrders.filter(o=>o.id!==id);state.purchaseOrderLines=state.purchaseOrderLines.filter(l=>l.documentId!==id);
-});
-export const createPurchaseOrderLine=(id:string,data:Partial<PurchaseOrderLine>)=>action(()=>{
-  const order=editable(id);
-  const item=state.items.find(i=>i.id===data.itemId||i.number===data.lineObjectNumber)??fail('Select a valid catalog item');
-  if(item.blocked)fail('Item is blocked');
-  const nextSequence=Math.max(0,...linesFor(id).map(l=>l.sequence))+10000;
-  const base=newLine(order,item,`new-line-${lineSequence}`,nextSequence);
-  const line=calculateLine({...base,quantity:data.quantity??1,directUnitCost:data.directUnitCost??item.unitCost,
-    discountPercent:data.discountPercent??0,description:data.description??item.displayName,unitOfMeasureCode:data.unitOfMeasureCode??item.baseUnitOfMeasureCode});
-  validateLine(line);lineSequence++;state.purchaseOrderLines.push(line);recalculate(id);return line;
-});
-export const updatePurchaseOrderLine=(id:string,lineId:string,data:Partial<PurchaseOrderLine>,_etag?:string)=>action(()=>{
-  editable(id);const original=linesFor(id).find(l=>l.id===lineId)??fail('Order line not found',404);
-  const updated=calculateLine({...original,quantity:data.quantity??original.quantity,directUnitCost:data.directUnitCost??original.directUnitCost,
-    discountPercent:data.discountPercent??original.discountPercent,description:data.description??original.description,
-    unitOfMeasureCode:data.unitOfMeasureCode??original.unitOfMeasureCode});
-  validateLine(updated);Object.assign(original,updated);recalculate(id);return original;
-});
-export const deletePurchaseOrderLine=(id:string,lineId:string)=>action(()=>{
-  editable(id);if(!linesFor(id).some(l=>l.id===lineId))fail('Order line not found',404);
-  state.purchaseOrderLines=state.purchaseOrderLines.filter(l=>!(l.documentId===id&&l.id===lineId));recalculate(id);
-});
-export const receiveAndInvoice=(id:string)=>action(()=>{
-  const order=editable(id);if(order.status!=='Open')fail('Only open orders can be received',409);
-  const lines=linesFor(id);if(!lines.length)fail('Cannot receive an empty order');
-  order.status='Received';order.fullyReceived=true;order.postingDate=localDate();
-  lines.forEach(l=>{l.receivedQuantity=l.invoicedQuantity=l.quantity;});recalculate(id);
-  state.purchaseInvoices.push({id:`received-${id}`,number:`PI-${20000+sequence++}`,postingDate:localDate(),invoiceDate:localDate(),
-    vendorName:order.vendorName,vendorNumber:order.vendorNumber,totalAmountExcludingTax:order.totalAmountExcludingTax,
-    totalAmountIncludingTax:order.totalAmountIncludingTax,status:'Posted',orderNumber:order.number});
-});
-export const resetMockData=()=>action(()=>{state=createSeedState();sequence=10013;lineSequence=100;});
-export const testConnection=()=>action(()=>true);
-export const bcApi={getVendors,getItems,getPurchaseOrders,getPurchaseOrder,createPurchaseOrder,updatePurchaseOrder,deletePurchaseOrder,
-  getPurchaseOrderLines,createPurchaseOrderLine,updatePurchaseOrderLine,deletePurchaseOrderLine,receiveAndInvoice,getPurchaseInvoices,
-  getUnitsOfMeasure,getLocations,resetMockData,testConnection};
+function normalizeError(error: unknown): ApiError {
+  if (error instanceof ApiError) return error;
+  if (isAxiosError(error)) {
+    const status = error.response?.status ?? 0;
+    const details = error.response?.data?.error;
+    // Never include Axios config: it contains Authorization or the client secret.
+    return new ApiError(typeof details?.code === 'string' ? details.code : `HTTP_${status}`,
+      typeof details?.message === 'string' ? details.message :
+      typeof error.response?.data?.error_description === 'string' ? 'Entra authentication failed. Check app credentials and admin consent.' :
+      status === 412 ? 'This record changed in Business Central. Refresh before editing again.' :
+      status === 0 ? 'Cannot reach Business Central. Check your connection and retry.' : `Business Central request failed (${status}).`, status);
+  }
+  return new ApiError('UNKNOWN', 'Unable to complete the Business Central request.', 0);
+}
+export interface BcConfig { tenantId: string; clientId: string; clientSecret: string; environment: string; companyId: string; apiHost: string; loginHost: string; scope: string }
+type OrderWrite = Partial<Pick<PurchaseOrder, 'vendorId' | 'orderDate' | 'postingDate' | 'requestedReceiptDate' | 'paymentTermsId' | 'shipmentMethodId'>>;
+type LineWrite = Partial<Pick<PurchaseOrderLine, 'itemId' | 'lineType' | 'lineObjectNumber' | 'description' | 'unitOfMeasureCode' | 'quantity' | 'directUnitCost' | 'discountPercent' | 'expectedReceiptDate'>>;
+const guid = (value: string) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) throw new ApiError('INVALID_ID', 'Invalid Business Central record ID.', 400);
+  return value;
+};
+export function createBcApi(config: BcConfig, http: AxiosInstance = create({ timeout: 30000 })) {
+  const base = `${config.apiHost}/v2.0/${encodeURIComponent(config.tenantId)}/${encodeURIComponent(config.environment)}/api/v2.0/companies(${config.companyId})`;
+  let cached: { value: string; expires: number } | undefined;
+  let pending: Promise<string> | undefined;
+  let generation = 0;
+  async function token(): Promise<string> {
+    if (cached && cached.expires > Date.now() + 60000) return cached.value;
+    if (!pending) {
+      const startedGeneration = generation;
+      pending = (async () => {
+        try {
+          const body = new URLSearchParams({ client_id: config.clientId, client_secret: config.clientSecret, grant_type: 'client_credentials', scope: config.scope });
+          const { data } = await http.post(`${config.loginHost}/${encodeURIComponent(config.tenantId)}/oauth2/v2.0/token`, body.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+          if (typeof data.access_token !== 'string' || !Number.isFinite(Number(data.expires_in))) throw new ApiError('INVALID_TOKEN', 'Entra returned an invalid token response.', 502);
+          if (startedGeneration === generation) cached = { value: data.access_token, expires: Date.now() + Number(data.expires_in) * 1000 };
+          return data.access_token as string;
+        } catch (error) { throw normalizeError(error); }
+        finally { if (startedGeneration === generation) pending = undefined; }
+      })();
+    }
+    return pending;
+  }
+  const clearCache = () => { generation++; cached = undefined; pending = undefined; };
+  async function request<T>(path: string, options: AxiosRequestConfig = {}, retry = true): Promise<T> {
+    let bearer: string | undefined;
+    try {
+      if (path.startsWith('http') && !new URL(path).href.startsWith(`${base}/`)) throw new ApiError('UNSAFE_PAGE', 'Business Central returned an invalid pagination URL.', 502);
+      bearer = await token();
+      const response = await http.request<T>({ ...options, url: path.startsWith('http') ? path : `${base}/${path}`, headers: { Accept: 'application/json', ...options.headers, Authorization: `Bearer ${bearer}` } });
+      return response.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 401 && retry) {
+        if (cached?.value === bearer) cached = undefined;
+        return request<T>(path, options, false);
+      }
+      throw normalizeError(error);
+    }
+  }
+  function params(query: ODataQueryParams = {}) {
+    const { filter, orderby, top, ...values } = query;
+    return { ...values, $filter: query.$filter ?? filter, $orderby: query.$orderby ?? orderby, $top: query.$top ?? top };
+  }
+  async function list<T>(path: string, query?: ODataQueryParams): Promise<T[]> {
+    const values: T[] = [], seen = new Set<string>();
+    const limit = query?.$top ?? query?.top;
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 0)) throw new ApiError('INVALID_QUERY', '$top must be a nonnegative integer.', 400);
+    if (limit === 0) return [];
+    let next: string | undefined = path;
+    let first = true;
+    while (next) {
+      if (seen.has(next)) throw new ApiError('INVALID_PAGE', 'Business Central returned a pagination loop.', 502);
+      seen.add(next);
+      const page: BCApiResponse<T> = await request(next, first ? { params: params(query) } : {});
+      if (!Array.isArray(page.value)) throw new ApiError('INVALID_RESPONSE', 'Business Central returned an invalid list.', 502);
+      values.push(...page.value);
+      if (limit !== undefined && values.length >= limit) return values.slice(0, limit);
+      next = page['@odata.nextLink']; first = false;
+    }
+    return values;
+  }
+  const orderPath = (id: string) => `purchaseOrders(${guid(id)})`;
+  const linesPath = (id: string) => `${orderPath(id)}/purchaseOrderLines`;
+  const linePath = (id: string, lineId: string) => `${linesPath(id)}(${guid(lineId)})`;
+  async function mutate<T>(path: string, method: 'PATCH' | 'DELETE', data?: unknown, etag?: string): Promise<T> {
+    const tag = etag ?? (await request<{ '@odata.etag'?: string }>(path))['@odata.etag'];
+    if (!tag) throw new ApiError('MISSING_ETAG', 'Record version is missing. Refresh before saving.', 409);
+    return request<T>(path, { method, data, headers: { 'If-Match': tag } });
+  }
+  return {
+    clearCache,
+    getVendors: (q?: ODataQueryParams) => list<Vendor>('vendors', q),
+    getItems: (q?: ODataQueryParams) => list<Item>('items', q),
+    getPurchaseOrders: (q?: ODataQueryParams) => list<PurchaseOrder>('purchaseOrders', q),
+    getPurchaseOrder: (id: string) => request<PurchaseOrder>(orderPath(id)),
+    createPurchaseOrder: (data: OrderWrite) => request<PurchaseOrder>('purchaseOrders', { method: 'POST', data }),
+    updatePurchaseOrder: (id: string, data: OrderWrite, etag?: string) => mutate<PurchaseOrder>(orderPath(id), 'PATCH', data, etag),
+    deletePurchaseOrder: (id: string, etag?: string) => mutate<void>(orderPath(id), 'DELETE', undefined, etag),
+    getPurchaseOrderLines: (id: string, q?: ODataQueryParams) => list<PurchaseOrderLine>(linesPath(id), q),
+    createPurchaseOrderLine: (id: string, data: LineWrite) => request<PurchaseOrderLine>(linesPath(id), { method: 'POST', data }),
+    updatePurchaseOrderLine: (id: string, lineId: string, data: LineWrite, etag?: string) => mutate<PurchaseOrderLine>(linePath(id, lineId), 'PATCH', data, etag),
+    deletePurchaseOrderLine: (id: string, lineId: string, etag?: string) => mutate<void>(linePath(id, lineId), 'DELETE', undefined, etag),
+    receiveAndInvoice: (id: string) => request<void>(`${orderPath(id)}/Microsoft.NAV.receiveAndInvoice`, { method: 'POST' }),
+    getPurchaseInvoices: (q?: ODataQueryParams) => list<PurchaseInvoice>('purchaseInvoices', q),
+    getPurchaseInvoice: (id: string) => request<PurchaseInvoice>(`purchaseInvoices(${guid(id)})`),
+    getUnitsOfMeasure: (q?: ODataQueryParams) => list<UnitOfMeasure>('unitsOfMeasure', q),
+    getLocations: (q?: ODataQueryParams) => list<Location>('locations', q),
+    testConnection: async () => { await list<Vendor>('vendors', { $top: 1 }); return true; },
+  };
+}
+export const bcApi = createBcApi(appConfig);
+export const { getVendors, getItems, getPurchaseOrders, getPurchaseOrder, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder,
+  getPurchaseOrderLines, createPurchaseOrderLine, updatePurchaseOrderLine, deletePurchaseOrderLine, receiveAndInvoice,
+  getPurchaseInvoices, getUnitsOfMeasure, getLocations } = bcApi;

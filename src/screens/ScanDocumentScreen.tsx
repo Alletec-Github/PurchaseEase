@@ -1,4 +1,5 @@
-import { vendors, items, localDate } from '../services/mockData';
+import { localDate, formatCurrency, isVendorBlocked } from '../services/format';
+import { bcApi } from '../services/bcApi';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { OrderFlowParamList } from '../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,13 +12,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Animated,
+  Alert,
 } from 'react-native';
 import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { theme } from '../config/theme';
-
-const formatCurrency = (amount: number) =>
-  '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 const MOCK_RESULT = {
   vendorName: 'Contoso Electronics Ltd.',
@@ -37,6 +36,7 @@ const MOCK_RESULT = {
 export default function ScanDocumentScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<OrderFlowParamList>>();
   const [scanning, setScanning] = useState(false);
+  const [mapping, setMapping] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [pulseAnim] = useState(new Animated.Value(1));
 
@@ -63,24 +63,23 @@ export default function ScanDocumentScreen() {
     setScanning(true);
   };
 
-  const handleCreateFromScan = () => {
-    navigation.navigate('CreateOrder', {
-      prefillKey: String(Date.now()),
-      prefillData: {
-        vendor: vendors[0],
-        notes: `Demo scan: ${MOCK_RESULT.invoiceNumber}`,
-        lines: MOCK_RESULT.lineItems.map((item, i) => ({
-          tempId: `scan-${i}`,
-          item: items[i],
-          quantity: item.quantity,
-          directUnitCost: item.unitCost,
-          discountPercent: 0,
-          lineType: 'Item' as const,
-          description: item.description,
-          unitOfMeasureCode: items[i].baseUnitOfMeasureCode,
-        })),
-      },
-    });
+  const handleCreateFromScan = async () => {
+    if (mapping) return;
+    setMapping(true);
+    try {
+      const [vendors, items] = await Promise.all([bcApi.getVendors(), bcApi.getItems()]);
+      const vendor = vendors.find(row => !isVendorBlocked(row.blocked) && row.displayName.toLowerCase() === MOCK_RESULT.vendorName.toLowerCase()) || null;
+      const lines = MOCK_RESULT.lineItems.flatMap((extracted, i) => {
+        const item = items.find(row => !row.blocked && row.displayName.toLowerCase() === extracted.description.toLowerCase());
+        return item ? [{ tempId: `scan-${i}`, item, quantity: extracted.quantity, directUnitCost: extracted.unitCost,
+          discountPercent: 0, lineType: 'Item' as const, description: extracted.description, unitOfMeasureCode: item.baseUnitOfMeasureCode }] : [];
+      });
+      Alert.alert('Review simulated extraction', 'This preview uses sample values. Select the correct Business Central vendor and any unmatched items before creating a live order.');
+      navigation.navigate('CreateOrder', { prefillKey: String(Date.now()), prefillData: {
+        vendor, lines, notes: `Simulated extraction ${MOCK_RESULT.invoiceNumber}. Verify before purchase.`,
+      } });
+    } catch (error) { Alert.alert('Unable to load catalog', error instanceof Error ? error.message : 'Please retry.'); }
+    finally { setMapping(false); }
   };
 
   return (
@@ -185,7 +184,7 @@ export default function ScanDocumentScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.createButton} onPress={handleCreateFromScan} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.createButton} disabled={mapping} onPress={handleCreateFromScan} activeOpacity={0.7}>
               <Icon name="file-plus" size={22} color={theme.colors.white} />
               <Text style={styles.createButtonText}>Create Order from Scan</Text>
             </TouchableOpacity>

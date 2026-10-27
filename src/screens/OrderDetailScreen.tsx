@@ -12,15 +12,16 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { appConfig } from '../config/appConfig';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
 import type { PurchaseOrder, PurchaseOrderLine } from '../types/api';
 
-const formatCurrency = (amount: number) =>
-  '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+import { formatCurrency } from '../services/format';
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -79,7 +80,7 @@ export default function OrderDetailScreen() {
         onPress: async () => {
           setActionLoading(true);
           try {
-            await bcApi.deletePurchaseOrder(orderId);
+            await bcApi.deletePurchaseOrder(orderId, order?.['@odata.etag']);
             Alert.alert('Deleted', 'Order has been deleted');
             navigation.goBack();
           } catch (err: any) {
@@ -92,17 +93,14 @@ export default function OrderDetailScreen() {
     ]);
   };
 
-  const handleSubmit = async () => {
-    setActionLoading(true);
-    try {
-      await bcApi.updatePurchaseOrder(orderId, { status: 'Open' });
-      fetchData();
-      Alert.alert('Success', 'Order submitted and set to Open');
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to submit order');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleSubmit = () => {
+    Alert.alert('Release in Business Central', `Open ${order?.number} in Business Central and use Release. The standard v2.0 API exposes status as read-only. Return here and refresh after release.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open Business Central', onPress: () => {
+        const url = `https://businesscentral.dynamics.com/${encodeURIComponent(appConfig.tenantId)}/${encodeURIComponent(appConfig.environment)}?company=${encodeURIComponent(appConfig.companyId)}&page=9307`;
+        Linking.openURL(url).catch(() => Alert.alert('Unable to open Business Central', 'Open the Business Central web client to release this order.'));
+      } },
+    ]);
   };
 
   const handleReceiveAndInvoice = async () => {
@@ -114,8 +112,8 @@ export default function OrderDetailScreen() {
           setActionLoading(true);
           try {
             await bcApi.receiveAndInvoice(orderId);
-            Alert.alert('Success', 'Order received and invoiced');
-            fetchData();
+            Alert.alert('Success', 'Order received and invoiced. View the posted document in Invoices.');
+            if (navigation.canGoBack()) navigation.goBack(); else navigation.getParent()?.navigate('InvoicesTab');
           } catch (err: any) {
             Alert.alert('Error', err.message || 'Failed to receive and invoice');
           } finally {
@@ -199,21 +197,21 @@ export default function OrderDetailScreen() {
           <View style={styles.totalsSection}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>{formatCurrency(order.totalAmountExcludingTax)}</Text>
+              <Text style={styles.totalValue}>{formatCurrency(order.totalAmountExcludingTax, order.currencyCode)}</Text>
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Tax</Text>
-              <Text style={styles.totalValue}>{formatCurrency(order.totalTaxAmount)}</Text>
+              <Text style={styles.totalValue}>{formatCurrency(order.totalTaxAmount, order.currencyCode)}</Text>
             </View>
             {order.discountAmount > 0 && (
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Discount (included above)</Text>
-                <Text style={[styles.totalValue, { color: theme.colors.success }]}>-{formatCurrency(order.discountAmount)}</Text>
+                <Text style={[styles.totalValue, { color: theme.colors.success }]}>-{formatCurrency(order.discountAmount, order.currencyCode)}</Text>
               </View>
             )}
             <View style={[styles.totalRow, styles.grandTotalRow]}>
               <Text style={styles.grandTotalLabel}>Total</Text>
-              <Text style={styles.grandTotalValue}>{formatCurrency(order.totalAmountIncludingTax)}</Text>
+              <Text style={styles.grandTotalValue}>{formatCurrency(order.totalAmountIncludingTax, order.currencyCode)}</Text>
             </View>
           </View>
         </View>
@@ -224,12 +222,12 @@ export default function OrderDetailScreen() {
           <View key={line.id} style={styles.lineCard}>
             <View style={styles.lineHeader}>
               <Text style={styles.lineDescription} numberOfLines={2}>{line.description}</Text>
-              <Text style={styles.lineAmount}>{formatCurrency(line.amountIncludingTax)}</Text>
+              <Text style={styles.lineAmount}>{formatCurrency(line.amountIncludingTax, order.currencyCode)}</Text>
             </View>
             <View style={styles.lineDetails}>
               <Text style={styles.lineDetail}>{line.lineObjectNumber}</Text>
               <Text style={styles.lineDetail}>
-                {line.quantity} x {formatCurrency(line.directUnitCost)}
+                {line.quantity} x {formatCurrency(line.directUnitCost, order.currencyCode)}
               </Text>
               {line.discountPercent > 0 && (
                 <Text style={[styles.lineDetail, { color: theme.colors.success }]}>-{line.discountPercent}% disc</Text>

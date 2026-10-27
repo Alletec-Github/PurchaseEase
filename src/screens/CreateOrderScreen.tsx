@@ -1,6 +1,6 @@
 import DecimalInput from '../components/DecimalInput';
 import ErrorState from '../components/ErrorState';
-import { localDate, lineAmounts, money } from '../services/mockData';
+import { localDate, lineSubtotal, money, formatCurrency, isVendorBlocked } from '../services/format';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { OrderFlowParamList } from '../types/navigation';
@@ -25,9 +25,6 @@ import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
 import type { Vendor, Item } from '../types/api';
 import type { DraftOrderLine } from '../types/app';
-
-const formatCurrency = (amount: number) =>
-  '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 const STEPS = ['Select Vendor', 'Add Items', 'Details', 'Review'];
 
@@ -75,7 +72,7 @@ export default function CreateOrderScreen() {
   const validDates = !receiptDate || localDate(receiptDate) >= localDate(orderDate);
 
   const filteredVendors = vendors.filter(v =>
-    !v.blocked && (v.displayName.toLowerCase().includes(vendorSearch.toLowerCase()) ||
+    !isVendorBlocked(v.blocked) && (v.displayName.toLowerCase().includes(vendorSearch.toLowerCase()) ||
     v.number.toLowerCase().includes(vendorSearch.toLowerCase())),
   );
 
@@ -112,11 +109,10 @@ export default function CreateOrderScreen() {
   };
 
   const lineTotal = (line: DraftOrderLine) => {
-    return Number.isFinite(line.quantity + line.directUnitCost + line.discountPercent) ? lineAmounts(line.quantity, line.directUnitCost, line.discountPercent).amountExcludingTax : 0;
+    return Number.isFinite(line.quantity + line.directUnitCost + line.discountPercent) ? lineSubtotal(line.quantity, line.directUnitCost, line.discountPercent) : 0;
   };
 
   const grandTotal = money(orderLines.reduce((sum, l) => sum + lineTotal(l), 0));
-  const totalIncludingTax = money(orderLines.reduce((sum,l)=>sum+lineAmounts(l.quantity,l.directUnitCost,l.discountPercent).amountIncludingTax,0));
 
   const canProceed = () => {
     switch (step) {
@@ -136,8 +132,7 @@ export default function CreateOrderScreen() {
       const order = await bcApi.createPurchaseOrder({
         vendorId: selectedVendor.id,
         orderDate: localDate(orderDate),
-        notes,
-        requestedReceiptDate: receiptDate ? localDate(receiptDate) : '',
+        ...(receiptDate ? { requestedReceiptDate: localDate(receiptDate) } : {}),
       });
 
       createdId = order.id;
@@ -154,14 +149,24 @@ export default function CreateOrderScreen() {
         });
       }
 
+      for (const description of notes.match(/.{1,100}/g) || []) {
+        await bcApi.createPurchaseOrderLine(order.id, { lineType: 'Comment', description });
+      }
       setSelectedVendor(null);setOrderLines([]);setStep(0);setNotes('');
       Alert.alert('Success', `Purchase Order ${order.number} created successfully!`, [
         { text: 'View Order', onPress: () => navigation.navigate('OrderDetail', { orderId: order.id }) },
         { text: 'OK', onPress: () => navigation.navigate('OrderDetail', {orderId:order.id}) },
       ]);
     } catch (err: any) {
-      if (createdId) { try { await bcApi.deletePurchaseOrder(createdId); } catch { Alert.alert('Partial order saved', 'A draft remains in Orders. Review it before trying again.'); } }
-      Alert.alert('Error', err.message || 'Failed to create purchase order');
+      if (createdId) {
+        const savedId = createdId;
+        setSelectedVendor(null);setOrderLines([]);setStep(0);setNotes('');
+        Alert.alert('Partial order saved', 'The order header exists in Business Central, but some lines may be missing. Review the saved order before adding missing lines; do not submit this form again.', [
+          { text: 'Review order', onPress: () => navigation.navigate('OrderDetail', { orderId: savedId }) },
+        ]);
+      } else {
+        Alert.alert('Unable to confirm creation', `${err.message || 'Request failed'}. If the connection timed out, check Orders before trying again.`);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -298,12 +303,12 @@ export default function CreateOrderScreen() {
                   />
                 </View>
               </View>
-              <Text style={styles.lineTotal}>Line Total: {formatCurrency(lineTotal(line))}</Text>
+              <Text style={styles.lineTotal}>Line Total: {formatCurrency(lineTotal(line), selectedVendor?.currencyCode)}</Text>
             </View>
           ))}
           <View style={styles.grandTotalBar}>
             <Text style={styles.grandTotalLabel}>Subtotal (excl. tax)</Text>
-            <Text style={styles.grandTotalValue}>{formatCurrency(grandTotal)}</Text>
+            <Text style={styles.grandTotalValue}>{formatCurrency(grandTotal, selectedVendor?.currencyCode)}</Text>
           </View>
         </>
       )}
@@ -325,7 +330,7 @@ export default function CreateOrderScreen() {
         <Text style={styles.dateText}>{receiptDate ? receiptDate.toLocaleDateString() : 'Not set'}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.fieldLabel}>Notes</Text>
+      <Text style={styles.fieldLabel}>Notes (saved as comment lines)</Text>
       <TextInput
         style={styles.notesInput}
         multiline
@@ -389,17 +394,16 @@ export default function CreateOrderScreen() {
           <View key={line.tempId} style={styles.reviewLineItem}>
             <Text style={styles.reviewLineName}>{line.description}</Text>
             <View style={styles.reviewLineDetails}>
-              <Text style={styles.reviewLineQty}>{line.quantity} x {formatCurrency(line.directUnitCost)}</Text>
-              <Text style={styles.reviewLineAmount}>{formatCurrency(lineTotal(line))}</Text>
+              <Text style={styles.reviewLineQty}>{line.quantity} x {formatCurrency(line.directUnitCost, selectedVendor?.currencyCode)}</Text>
+              <Text style={styles.reviewLineAmount}>{formatCurrency(lineTotal(line), selectedVendor?.currencyCode)}</Text>
             </View>
           </View>
         ))}
         <View style={[styles.reviewRow, styles.reviewTotalRow]}>
           <Text style={styles.reviewTotalLabel}>Subtotal</Text>
-          <Text style={styles.reviewTotalValue}>{formatCurrency(grandTotal)}</Text>
+          <Text style={styles.reviewTotalValue}>{formatCurrency(grandTotal, selectedVendor?.currencyCode)}</Text>
         </View>
-        <Text>Tax (10%): {formatCurrency(money(totalIncludingTax-grandTotal))}</Text>
-        <Text>Total including tax: {formatCurrency(totalIncludingTax)}</Text>
+        <Text>Business Central calculates tax and final totals after the order is saved.</Text>
       </View>
     </ScrollView>
   );
