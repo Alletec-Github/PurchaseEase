@@ -19,8 +19,7 @@ import { bcApi } from '../services/bcApi';
 import type { PurchaseOrder } from '../types/api';
 import type { OrderFilterTab } from '../types/app';
 
-const formatCurrency = (amount: number) =>
-  '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+import { formatCurrency } from '../services/format';
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -69,7 +68,7 @@ export default function OrderListScreen() {
 
   const filteredOrders = orders.filter(o => {
     const matchesTab = activeTab === 'All' ||
-      (activeTab === 'Received' ? o.fullyReceived : o.status === activeTab);
+      (activeTab === 'Received' ? o.fullyReceived : !o.fullyReceived && o.status === activeTab);
     const q = searchQuery.toLowerCase();
     const matchesSearch = !q ||
       o.number.toLowerCase().includes(q) ||
@@ -84,8 +83,8 @@ export default function OrderListScreen() {
       activeOpacity={0.7}>
       <View style={styles.orderHeader}>
         <Text style={styles.orderNumber}>{order.number}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusBg(order.status) }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusBg(order.fullyReceived ? 'Received' : order.status) }]}>
+          <Text style={[styles.statusText, { color: getStatusColor(order.fullyReceived ? 'Received' : order.status) }]}>
             {order.fullyReceived ? 'Received' : order.status}
           </Text>
         </View>
@@ -96,7 +95,7 @@ export default function OrderListScreen() {
           <Icon name="calendar" size={14} color={theme.colors.textLight} />
           <Text style={styles.orderDate}>{order.orderDate}</Text>
         </View>
-        <Text style={styles.orderAmount}>{formatCurrency(order.totalAmountIncludingTax)}</Text>
+        <Text style={styles.orderAmount}>{formatCurrency(order.totalAmountIncludingTax, order.currencyCode)}</Text>
       </View>
     </TouchableOpacity>
   );

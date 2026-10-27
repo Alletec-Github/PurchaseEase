@@ -19,8 +19,7 @@ import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
 import type { PurchaseInvoice } from '../types/api';
 
-const formatCurrency = (amount: number) =>
-  '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+import { formatCurrency } from '../services/format';
 
 export default function PostedInvoicesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<InvoicesStackParamList>>();
@@ -62,7 +61,7 @@ export default function PostedInvoicesScreen() {
           <Text style={styles.invoiceNumber}>{item.number}</Text>
           <Text style={styles.vendorName}>{item.vendorName}</Text>
         </View>
-        <Text style={styles.amount}>{formatCurrency(item.totalAmountIncludingTax)}</Text>
+        <Text style={styles.amount}>{formatCurrency(item.totalAmountIncludingTax, item.currencyCode)}</Text>
       </View>
       <View style={styles.cardBottom}>
         <View style={styles.dateRow}>
@@ -70,7 +69,7 @@ export default function PostedInvoicesScreen() {
           <Text style={styles.dateText}>{item.postingDate}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: theme.colors.statusReceivedBg }]}>
-          <Text style={[styles.statusText, { color: theme.colors.statusReceived }]}>Posted</Text>
+          <Text style={[styles.statusText, { color: theme.colors.statusReceived }]}>{item.status}</Text>
         </View>
       </View>
     </TouchableOpacity>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appConfig } from '../config/appConfig';
+import { bcApi } from './bcApi';
 import type { UserProfile } from '../types/app';
 const AUTH_KEY='@PurchaseEase:isLoggedIn';
 const USER_KEY='@PurchaseEase:user';
@@ -18,7 +19,7 @@ export function AuthProvider({children}:{children:React.ReactNode}) {
     const profile:UserProfile={username:username.trim(),displayName:username.trim(),isLoggedIn:true,loginTimestamp:Date.now()};
     await AsyncStorage.multiSet([[AUTH_KEY,'true'],[USER_KEY,JSON.stringify(profile)]]);setUser(profile);
   };
-  const signOut=async()=>{await AsyncStorage.multiRemove([AUTH_KEY,USER_KEY]);setUser(null);};
+  const signOut=async()=>{await AsyncStorage.multiRemove([AUTH_KEY,USER_KEY]);bcApi.clearCache();setUser(null);};
   return <AuthContext.Provider value={{user,loading,signIn,signOut}}>{children}</AuthContext.Provider>;
 }
 export function useAuth(){const value=useContext(AuthContext);if(!value)throw new Error('AuthProvider is missing');return value;}

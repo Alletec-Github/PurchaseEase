@@ -1,5 +1,5 @@
 import DecimalInput from '../components/DecimalInput';
-import { localDate, lineAmounts } from '../services/mockData';
+import { localDate, lineSubtotal, formatCurrency } from '../services/format';
 import ErrorState from '../components/ErrorState';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
@@ -23,9 +23,6 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
 import type { PurchaseOrder, PurchaseOrderLine, Item } from '../types/api';
-
-const formatCurrency = (amount: number) =>
-  '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 export default function EditOrderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<OrderFlowParamList>>();
@@ -56,8 +53,8 @@ export default function EditOrderScreen() {
       setOrder(o);
       setLines(l);
       setItems(i);
-      setOrderDate(new Date(o.orderDate));
-      if (o.requestedReceiptDate) setReceiptDate(new Date(o.requestedReceiptDate));
+      setOrderDate(new Date(o.orderDate+'T12:00:00'));
+      if (o.requestedReceiptDate && o.requestedReceiptDate !== '0001-01-01') setReceiptDate(new Date(o.requestedReceiptDate+'T12:00:00'));
     }).catch((err) => {
       setError(err.message || 'Failed to load order');
     }).finally(() => setLoading(false));
@@ -65,18 +62,18 @@ export default function EditOrderScreen() {
 
   const handleSave = async () => {
     if (!order || saving) return;
-    if(lines.some(l=>!Number.isFinite(l.quantity)||l.quantity<=0||!Number.isFinite(l.directUnitCost)||l.directUnitCost<0||!Number.isFinite(l.discountPercent)||l.discountPercent<0||l.discountPercent>100)){Alert.alert('Invalid line','Use a positive quantity, nonnegative cost and a discount from 0–100.');return;}
+    if(lines.filter(l=>l.lineType!=='Comment').some(l=>!Number.isFinite(l.quantity)||l.quantity<=0||!Number.isFinite(l.directUnitCost)||l.directUnitCost<0||!Number.isFinite(l.discountPercent)||l.discountPercent<0||l.discountPercent>100)){Alert.alert('Invalid line','Use a positive quantity, nonnegative cost and a discount from 0–100.');return;}
     setSaving(true);
     try {
       await bcApi.updatePurchaseOrder(orderId, {
         orderDate: localDate(orderDate),
-        requestedReceiptDate: receiptDate ? localDate(receiptDate) : '',
+        ...(receiptDate ? { requestedReceiptDate: localDate(receiptDate) } : {}),
       }, order['@odata.etag']);
-      for(const line of lines){await bcApi.updatePurchaseOrderLine(orderId,line.id,{quantity:line.quantity,directUnitCost:line.directUnitCost,discountPercent:line.discountPercent});}
+      for(const line of lines.filter(l=>l.lineType!=='Comment')){await bcApi.updatePurchaseOrderLine(orderId,line.id,{quantity:line.quantity,directUnitCost:line.directUnitCost,discountPercent:line.discountPercent},line['@odata.etag']);}
       Alert.alert('Saved', 'Order updated successfully');
       navigation.goBack();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save');
+      Alert.alert('Some changes may have been saved', `${err.message || 'Failed to save'}. Refresh this order before editing again.`, [{ text: 'Refresh', onPress: () => setLoadKey(key=>key+1) }]);
     } finally {
       setSaving(false);
     }
@@ -91,6 +88,7 @@ export default function EditOrderScreen() {
           try {
             await bcApi.deletePurchaseOrderLine(orderId, lineId);
             setLines(prev => prev.filter(l => l.id !== lineId));
+            setOrder(await bcApi.getPurchaseOrder(orderId));
           } catch (err: any) {
             Alert.alert('Error', err.message);
           }
@@ -103,6 +101,7 @@ export default function EditOrderScreen() {
     try {
       const newLine = await bcApi.createPurchaseOrderLine(orderId, {
         lineType: 'Item',
+        itemId: item.id,
         lineObjectNumber: item.number,
         quantity: 1,
         directUnitCost: item.unitCost,
@@ -111,6 +110,7 @@ export default function EditOrderScreen() {
       });
       setLines(prev => [...prev, newLine]);
       setShowAddItem(false);
+      setOrder(await bcApi.getPurchaseOrder(orderId));
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to add line');
     }
@@ -195,15 +195,15 @@ export default function EditOrderScreen() {
           <View key={line.id} style={styles.lineCard}>
             <View style={styles.lineTop}>
               <Text style={styles.lineName} numberOfLines={1}>{line.description}</Text>
-              <TouchableOpacity onPress={() => handleDeleteLine(line.id)}>
+              <TouchableOpacity disabled={saving} onPress={() => handleDeleteLine(line.id)}>
                 <Icon name="delete-outline" size={20} color={theme.colors.error} />
               </TouchableOpacity>
             </View>
             <View style={{flexDirection:'row',gap:12,marginTop:12}}>
-              {(['quantity','directUnitCost','discountPercent'] as const).map((field,index)=><View key={field} style={{flex:1}}><Text style={styles.fieldLabel}>{['Qty','Unit cost','Disc %'][index]}</Text><DecimalInput accessibilityLabel={['Quantity','Unit cost','Discount percent'][index]} keyboardType="decimal-pad" style={styles.dateButton} value={line[field]} onChangeValue={value=>setLines(current=>current.map(row=>row.id===line.id?{...row,[field]:value}:row))}/></View>)}
+              {(line.lineType === 'Comment' ? [] : ['quantity','directUnitCost','discountPercent'] as const).map((field,index)=><View key={field} style={{flex:1}}><Text style={styles.fieldLabel}>{['Qty','Unit cost','Disc %'][index]}</Text><DecimalInput accessibilityLabel={['Quantity','Unit cost','Discount percent'][index]} keyboardType="decimal-pad" style={styles.dateButton} value={line[field]} onChangeValue={value=>setLines(current=>current.map(row=>row.id===line.id?{...row,[field]:value}:row))}/></View>)}
             </View>
             <Text style={styles.lineInfo}>
-              {line.quantity} x {formatCurrency(line.directUnitCost)} = {formatCurrency(lineAmounts(line.quantity,line.directUnitCost,line.discountPercent).amountIncludingTax)}
+              {line.quantity} x {formatCurrency(line.directUnitCost, order?.currencyCode)} = {formatCurrency(lineSubtotal(line.quantity,line.directUnitCost,line.discountPercent), order?.currencyCode)}
             </Text>
           </View>
         ))}

@@ -1,4 +1,4 @@
-import { localDate } from '../services/mockData';
+import { localDate, formatCurrency } from '../services/format';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { OrderFlowParamList } from '../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,9 +17,6 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { theme } from '../config/theme';
 import { bcApi } from '../services/bcApi';
 import type { PurchaseOrder } from '../types/api';
-
-const formatCurrency = (amount: number) =>
-  '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -48,7 +45,7 @@ export default function DashboardScreen() {
     totalOpen: 0,
     thisMonth: 0,
     pendingReceipt: 0,
-    totalAmount: 0,
+    totalAmount: '',
   });
   const [recentOrders, setRecentOrders] = useState<PurchaseOrder[]>([]);
 
@@ -66,7 +63,9 @@ export default function DashboardScreen() {
       const openOrders = orders.filter(o => o.status === 'Open' && !o.fullyReceived);
       const thisMonthOrders = orders.filter(o => o.orderDate >= monthStart && o.orderDate <= localDate(new Date(now.getFullYear(),now.getMonth()+1,0)));
       const pendingReceipt = orders.filter(o => o.status === 'Open' && !o.fullyReceived);
-      const totalAmount = openOrders.reduce((sum, o) => sum + o.totalAmountIncludingTax, 0);
+      const amounts = new Map<string, number>();
+      for (const order of openOrders) amounts.set(order.currencyCode || '', (amounts.get(order.currencyCode || '') || 0) + order.totalAmountIncludingTax);
+      const totalAmount = Array.from(amounts, ([code, amount]) => formatCurrency(amount, code)).join(' · ') || formatCurrency(0);
 
       setStats({
         totalOpen: openOrders.length,
@@ -119,7 +118,7 @@ export default function DashboardScreen() {
     { title: 'Open Orders', value: stats.totalOpen.toString(), icon: 'file-document-outline', color: theme.colors.statusOpen },
     { title: 'This Month', value: stats.thisMonth.toString(), icon: 'calendar-month', color: theme.colors.warning },
     { title: 'Pending Receipt', value: stats.pendingReceipt.toString(), icon: 'truck-delivery', color: theme.colors.statusInReview },
-    { title: 'Total Amount', value: formatCurrency(stats.totalAmount), icon: 'currency-usd', color: theme.colors.success },
+    { title: 'Total Amount', value: stats.totalAmount, icon: 'currency-usd', color: theme.colors.success },
   ];
 
   const quickActions: {title:string;icon:React.ComponentProps<typeof Icon>['name'];color:string;onPress:()=>void}[] = [
@@ -182,14 +181,14 @@ export default function DashboardScreen() {
               activeOpacity={0.7}>
               <View style={styles.orderHeader}>
                 <Text style={styles.orderNumber}>{order.number}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusBg(order.status) }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusBg(order.fullyReceived ? 'Received' : order.status) }]}>
+                  <Text style={[styles.statusText, { color: getStatusColor(order.fullyReceived ? 'Received' : order.status) }]}>{order.fullyReceived ? 'Received' : order.status}</Text>
                 </View>
               </View>
               <Text style={styles.orderVendor}>{order.vendorName}</Text>
               <View style={styles.orderFooter}>
                 <Text style={styles.orderDate}>{order.orderDate}</Text>
-                <Text style={styles.orderAmount}>{formatCurrency(order.totalAmountIncludingTax)}</Text>
+                <Text style={styles.orderAmount}>{formatCurrency(order.totalAmountIncludingTax, order.currencyCode)}</Text>
               </View>
             </TouchableOpacity>
           ))

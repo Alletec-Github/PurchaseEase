@@ -1,4 +1,4 @@
-import {bcApi,simulateNextError,MockApiError} from '../src/services/bcApi';
+import {bcApi,simulateNextError,MockApiError} from '../src/services/mockApi';
 import {purchaseOrders,purchaseOrderLines,items,vendors,money} from '../src/services/mockData';
 import {query} from '../src/services/query';
 
@@ -7,7 +7,7 @@ async function run<T>(request:Promise<T>):Promise<T>{const result=request.then(v
 beforeEach(async()=>{await run(bcApi.resetMockData());});
 test('seeds every requested entity and two to four lines per order',async()=>{
   expect(purchaseOrders.length).toBeGreaterThanOrEqual(10);expect(vendors.length).toBeGreaterThanOrEqual(8);expect(items.length).toBeGreaterThanOrEqual(15);
-  expect(new Set(purchaseOrders.map(o=>o.status))).toEqual(new Set(['Draft','Open','In Review','Received']));
+  expect(new Set(purchaseOrders.map(o=>o.status))).toEqual(new Set(['Draft','Open','In Review']));
   for(const order of purchaseOrders){const lines=purchaseOrderLines.filter(l=>l.documentId===order.id);expect(lines.length).toBeGreaterThanOrEqual(2);expect(lines.length).toBeLessThanOrEqual(4);expect(order.totalAmountIncludingTax).toBe(money(lines.reduce((sum,l)=>sum+l.amountIncludingTax,0)));}
   expect((await run(bcApi.getPurchaseInvoices())).length).toBeGreaterThanOrEqual(5);expect((await run(bcApi.getUnitsOfMeasure())).map(u=>u.code)).toEqual(['EA','BOX','KG','LTR','PCS']);expect((await run(bcApi.getLocations())).length).toBeGreaterThanOrEqual(3);
 });
@@ -23,7 +23,7 @@ test('create, edit, delete lines persist with discount and tax recalculation',as
 });
 test('receiving changes quantities, creates one invoice and prevents repeat receipt and edits',async()=>{
   const order=(await run(bcApi.getPurchaseOrders({$filter:"status eq 'Open'"})))[0];const before=await run(bcApi.getPurchaseInvoices());
-  await run(bcApi.receiveAndInvoice(order.id));expect(await run(bcApi.getPurchaseOrder(order.id))).toMatchObject({status:'Received',fullyReceived:true});
+  await run(bcApi.receiveAndInvoice(order.id));expect(await run(bcApi.getPurchaseOrder(order.id))).toMatchObject({status:'Open',fullyReceived:true});
   const lines=await run(bcApi.getPurchaseOrderLines(order.id));for(const line of lines){expect(line.receivedQuantity).toBe(line.quantity);expect(line.invoicedQuantity).toBe(line.quantity);}
   expect((await run(bcApi.getPurchaseInvoices())).length).toBe(before.length+1);
   await expect(run(bcApi.receiveAndInvoice(order.id))).rejects.toMatchObject({status:409});

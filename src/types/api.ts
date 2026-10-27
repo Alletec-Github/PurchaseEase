@@ -3,6 +3,7 @@
 export interface BCApiResponse<T> {
   '@odata.context'?: string;
   '@odata.count'?: number;
+  '@odata.nextLink'?: string;
   value: T[];
 }
 
@@ -27,9 +28,11 @@ export interface ODataQueryParams {
 
 // ── Purchase Order ───────────────────────────────────────
 
-export type PurchaseOrderStatus = 'Draft' | 'In Review' | 'Open' | 'Received';
+export type PurchaseOrderStatus = 'Draft' | 'In Review' | 'Open';
+export type OrderDisplayStatus = PurchaseOrderStatus | 'Received';
 
 export interface PurchaseOrder {
+  /** Optional fixture/UI metadata; the live API saves notes as Comment lines. */
   notes?: string;
   id: string;
   number: string;
@@ -66,7 +69,7 @@ export interface PurchaseOrder {
 
 // ── Purchase Order Line ──────────────────────────────────
 
-export type LineType = 'Item' | 'Account' | 'Resource';
+export type LineType = 'Item' | 'Account' | 'Resource' | 'Comment' | 'Fixed Asset' | 'Charge';
 
 export interface PurchaseOrderLine {
   id: string;
@@ -130,6 +133,7 @@ export interface Item {
 // ── Purchase Invoice ─────────────────────────────────────
 
 export interface PurchaseInvoice {
+  currencyCode?: string;
   id: string;
   number: string;
   postingDate: string;

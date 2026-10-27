@@ -2,68 +2,93 @@
 
 # PurchaseEase
 
-Mobile purchase order management app with demo data mode.
+Mobile purchase order management app integrated with Business Central.
 
-PurchaseEase helps purchasing teams create, manage and track orders. It runs in Expo Go SDK 54 with local sample data; there is no Business Central or Azure connection.
+PurchaseEase helps purchasing teams create, manage and track purchase orders through Microsoft's standard Business Central v2.0 APIs. It runs in Expo Go SDK 54 with live data. Document extraction remains an explicitly labeled simulation.
 
 ## Features
 
-- Persistent demo sign-in and profile, five-tab navigation
-- Dashboard metrics, recent orders, pull-to-refresh and quick actions
-- Vendor and item search, four-step order creation with dates, quantities, discounts and notes
-- Draft submission, order and line editing, deletion, receive and invoice
-- Posted invoices with search, date filters and read-only details
-- Simulated document extraction with a prefilled order; no camera access or document upload
-- Resettable in-memory demo data and reusable accessible card components
+- Persistent demo login and profile; five tabs with typed stack navigation
+- Live dashboard metrics, totals grouped by currency, recent orders and quick actions
+- Searchable vendors and items; four-step purchase order wizard with dates, quantities, costs and discounts
+- Order search, Draft/Open/Received filters, details, header and line editing, deletion, receive and invoice
+- Invoice search, date range filters and read-only details
+- Simulated document extraction with catalog matching and manual review
+- Settings connection test, token-cache clearing, logout and reusable accessible components
+- Corporate blue theme, loading/error/retry/empty states and pull-to-refresh
 
 ## Stack and architecture
 
-Expo SDK 54 / React Native 0.81 / React 19.1, TypeScript, React Navigation 7 native stacks and bottom tabs, Expo MaterialCommunityIcons, AsyncStorage, native date picker, Gesture Handler and Reanimated. Axios is available for a future API adapter but demo services make no HTTP requests. The project `.npmrc` keeps npm peer resolution consistent with the explicitly pinned Expo platform dependencies.
+Expo SDK 54, React Native 0.81, React 19.1, TypeScript, React Navigation 7 native stacks/bottom tabs, Axios, AsyncStorage, native date picker, Expo MaterialCommunityIcons, Gesture Handler and Reanimated. Use the Expo-compatible versions in the lockfile. React Navigation follows the explicit project specification.
 
-`src/screens` contains screens, `src/navigation` owns routes, `src/components` holds shared UI, `src/types` defines BC-shaped entities and app types, `src/config` stores theme and local configuration. Screens depend on the `bcApi` service interface; `src/services/mockData.ts` owns seeds and `bcApi.ts` implements session mutations with 300–600ms latency.
+Screens call `src/services/bcApi.ts`. This centralized adapter provides every requested standard endpoint, OAuth client credentials with in-memory single-flight token caching, expiry/401 refresh, server pagination, OData options, typed errors and ETag concurrency. The `createBcApi` factory allows deterministic HTTP adapter tests without accessing a real tenant. `mockApi.ts` and `mockData.ts` are offline test fixtures and are not selected by the app. Authentication persistence stores only the demo profile and login flag, never the OAuth token.
+
+`src/screens` contains screens; `src/navigation` owns routes; `src/components` holds shared UI; `src/types` defines API, app and route schemas; `src/config` holds theme and gitignored local configuration.
 
 ## Local development
 
-Use Node.js 20.19.4+ and npm. An Expo Go build compatible with SDK 54 is required. A global React Native CLI is unnecessary for Expo Go.
+Use Node.js 20.19.4+ and npm. Install an Expo Go build compatible with SDK 54. A global React Native CLI is unnecessary for Expo Go.
 
 ```sh
 git clone https://github.com/Alletec-Github/PurchaseEase.git
 cd PurchaseEase
 npm install
 cp src/config/appConfig.example.ts src/config/appConfig.ts
-# Set demoUsername, demoPassword and environment in the copied file.
+# Fill in the five BC credentials/environment/company values.
+# Demo login defaults are literally [USERNAME] / [PASSWORD].
 npm start
 ```
 
-Scan Metro's QR code in compatible Expo Go on a phone on the same network. Use `npx expo start --tunnel` if LAN discovery is unavailable. The local config is gitignored; never commit credentials. Demo credentials provide a local UI gate, not production authentication.
+All deployment-specific values are in `src/config/appConfig.ts`, which is gitignored. The example contains placeholders only. `localCurrencyCode` can optionally be set to the company's ISO currency; otherwise blank BC currency codes are labeled LCY rather than assuming USD or EUR. The client secret is used for the requested direct-auth development prototype. A mobile bundle cannot keep a client secret confidential: move client credentials and privileged operations to a secured backend before distributing this app. Demo login is a local UI gate, not authorization for individual BC users. Rotate development secrets when moving to production.
 
 ```sh
-npm run ios       # Expo Go in Device Hub (Xcode 27+) or Simulator (older Xcode)
-npm run android   # Expo Go in a running Android emulator
-npm run web       # Browser preview
+npm run ios       # Expo Go SDK 54 in iOS Simulator or Xcode Device Hub
+npm run android   # Expo Go in an Android emulator
+npm run web       # Browser preview; native iOS/Android are the live integration targets
 npm run typecheck
+npm run lint
 npm test
 npx expo-doctor
 npx expo export --platform ios --platform android
 ```
 
-For iOS Simulator install full Xcode, its iOS runtime and select Xcode as the active developer directory. The iOS launcher detects Apple’s [Device Hub](https://developer.apple.com/documentation/xcode/device-hub) in Xcode 27 or the legacy Simulator app, selects an available iPhone, installs the Expo Go client matching SDK 54, and opens this project. It reuses Metro on port 8081 or starts it if needed; set `EXPO_PORT` to use another port. Command Line Tools alone cannot launch simulators. Android needs Android Studio, SDK and an emulator or a USB-debugging device.
+For iOS install full Xcode, an iOS runtime, and select Xcode as the active developer directory. The iOS launcher supports Xcode Device Hub and Simulator, installs a matching Expo Go client and opens Metro. For Android install Android Studio, an SDK/emulator, or connect a USB-debugging device. Use the same network as Metro for a physical device.
 
-This is an Expo managed project. Pods are unnecessary for Expo Go. For native builds, install Xcode and CocoaPods (iOS) or JDK 17 and Android Studio (Android), then run `npx expo prebuild`, `npx pod-install`, and `npx expo run:ios` / `npx expo run:android`. Generated `ios` and `android` directories are ignored to prevent stale native dependencies from drifting from SDK 54.
+Expo Go needs no CocoaPods installation or checked-in native project. For a native development build, install CocoaPods/Xcode for iOS or JDK 17/Android Studio for Android, then run `npx expo prebuild`, `npx pod-install`, and `npx expo run:ios` / `npx expo run:android`. The requested bare `react-native run-ios` workflow is replaced by Expo's supported launch workflow. Generated native folders are gitignored.
 
-## Demo Mode Guide
+## Business Central setup guide
 
-Edit arrays in `src/services/mockData.ts` to change vendors, items, purchase orders, order lines, posted invoices, units and locations. Keep IDs and vendor/item references consistent. Seeds contain at least 10 orders with 2–4 lines each, eight vendors, 15 items, five invoices, five units and three warehouses. Order dates are relative to the current month for useful dashboard data.
+1. In the Microsoft Entra admin center register an app for your tenant. Record its application/client ID and directory/tenant ID.
+2. Under Certificates & secrets, create a client secret and copy its **value** into the local config.
+3. Add **Dynamics 365 Business Central → Application permissions → API.ReadWrite.All** and grant tenant admin consent. Automation permissions are unnecessary for the endpoints used here.
+4. In Business Central open **Microsoft Entra Applications**, add the client ID, enable it, and assign permission sets sufficient to read vendors/items and manage purchase documents in the chosen company. Use least privilege; applications cannot receive SUPER.
+5. Select the environment and company GUID. SaaS standard APIs are available without publishing custom web services. For on-premises environments enable API/OData services and configure Entra authentication according to Microsoft's guide; the supplied host targets SaaS.
+6. Verify access to the standard entity sets **purchaseOrders**, **purchaseOrderLines**, **vendors**, **items**, **purchaseInvoices**, **unitsOfMeasure**, and **locations**. Standard API pages ship with BC; no custom API pages are required.
+7. Open Settings to test the connection. A 401 usually indicates credentials/consent; a 403 indicates permissions; a 404 can indicate environment/company configuration.
 
-Service reads return copies; changes persist only for the running app session. Reloading the JS runtime or selecting Settings → Clear cached data restores the seeds. Signing out preserves demo session data until reset. Login state alone persists with AsyncStorage. No device or business data leaves the app.
+Sources: [Microsoft service-to-service setup](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/administration/automation-apis-using-s2s-authentication), [enabling APIs](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/enabling-apis-for-dynamics-nav).
 
-`bcApi.ts` exposes named functions and `bcApi`, uses typed `MockApiError` errors, and supports OData-style `$filter`, `$orderby`, `$top`, `$skip` (plus `filter`, `orderby`, `top` aliases). Supported filters: comparisons and `contains`, `startswith`, `endswith`, joined by `and` / `or`. Unsupported expressions reject with a typed 400 error. Call `simulateNextError()` to exercise a single failure deterministically. Failed validation never changes state. Receiving an open order marks it received and creates one posted invoice; repeat receipt is rejected.
+### Standard API contract and behavior
 
-For a future Business Central integration, replace the exported service implementation with an adapter that preserves the same signatures. Put OAuth credentials and privileged receive/post operations on a secure backend; do not ship client secrets in the mobile bundle. Map BC receipt state (`fullyReceived`) into the app's Received display status. Add server pagination, concurrency, authorization and integration tests before enabling a real connection.
+```text
+Base:  https://api.businesscentral.dynamics.com/v2.0/{tenantId}/{environment}/api/v2.0/companies({companyId})
+Token: https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
+Scope: https://api.businesscentral.dynamics.com/.default
+```
+
+The adapter exposes the requested order/header/line CRUD methods, `receiveAndInvoice`, vendors, items, invoices, units and locations, plus a single-invoice read and connection/cache utilities. List methods accept `$filter`, `$orderby`, `$top`, `$expand`, `$select`, `$skip`, `$count` and legacy query aliases. Pagination follows only links inside the configured company endpoint. Updates/deletes use a supplied ETag or fetch the record's current ETag; conflicts require refresh. Mutations are never automatically retried on timeouts or server failures.
+
+There are three relevant differences between the requested UI and Microsoft's standard API:
+
+- **Status is read-only.** PATCH cannot release a purchase order. The Submit action explains this and opens the BC purchase-order list so the user can release the order, then return and refresh. There is no custom release API in this app. See [Microsoft's API page source](https://github.com/microsoft/ALAppExtensions/blob/main/Apps/W1/APIV2/app/src/pages/APIV2PurchaseOrders.Page.al).
+- **Notes are comment lines.** The standard header has no `notes` property. Text is split into comment lines of up to 100 characters. Review shows an estimate excluding tax; BC calculates final tax and totals after saving.
+- **Received is a UI state derived from `fullyReceived`.** The API status values remain Draft/In Review/Open. Receiving and invoicing may remove the order, so the app returns to the list and directs the user to Invoices rather than fetching a deleted order. Posting may require additional vendor invoice/setup data in BC; server errors are displayed rather than inventing invoice numbers.
+
+Order creation saves the header then its lines sequentially. If a line fails, the partial order remains visible for review and adding missing lines in Edit; it is never silently deleted. If a header request times out, check Orders before retrying because BC may have accepted it. Editing additions/deletions apply immediately, as indicated in the UI. Multi-record edits are not atomic.
 
 ## Azure Document Intelligence (Future)
 
-The scan screen is a simulation and does not analyze files. A future backend can accept a camera image or PDF, call Azure Document Intelligence, and return extracted fields for user review. Provision an Azure resource and train a custom extraction model in Document Intelligence Studio with labeled vendor name, invoice number/date, line items, quantities, unit costs, discounts, tax and totals. Keep endpoint credentials on the backend; review low-confidence values and resolve vendors/items against master data before creating orders.
+The scan screen simulates extraction; it does not open a camera or upload files. A future backend can accept an image/PDF, call Azure Document Intelligence and return fields for review. Provision an ADI resource and train a custom extraction model in Document Intelligence Studio with labeled vendor name, invoice number/date, line items, quantities, unit costs, discounts, tax and totals. Keep ADI credentials on the backend. Review confidence and resolve vendor/item IDs against BC before creating an order. The current placeholder matches sample names against the live catalog; unmatched records must be selected manually.
 
 ## Screenshots
 
@@ -71,10 +96,10 @@ The scan screen is a simulation and does not analyze files. A future backend can
 |---|---|---|---|
 | [iOS login](docs/screenshots/login-ios.png) | Pending device capture | Pending device capture | Pending device capture |
 
-| Orders | Invoices | Scan demo | Settings |
+| Orders | Invoices | Scan placeholder | Settings |
 |---|---|---|---|
 | Pending device capture | Pending device capture | Pending device capture | Pending device capture |
 
-## Backlog and delivery
+## Delivery and validation
 
-See [demo backlog](docs/backlog.md). The repository already contained the original 12 merged feature PRs; this demo migration is tracked separately with one issue and sequential PR per workstream.
+The repository already contained the original 12 merged feature PRs (#14–#25) and a later demo-only migration. The live integration restoration is tracked by [issue #51](https://github.com/Alletec-Github/PurchaseEase/issues/51), preserving this history. Copilot assignment was attempted but GitHub reports the coding agent is not enabled in this repository. See [backlog](docs/backlog.md) and [validation](docs/validation.md).
